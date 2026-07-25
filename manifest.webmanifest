@@ -1,0 +1,17 @@
+{
+  "name": "Beauty by Kia Draft Review",
+  "short_name": "Beauty by Kia",
+  "description": "Review-only draft of the Beauty by Kia booking portal.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fffaf6",
+  "theme_color": "#9d4f66",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

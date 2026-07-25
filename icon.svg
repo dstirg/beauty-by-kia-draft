@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Beauty by Kia</title>
+  <rect width="64" height="64" rx="16" fill="#9d4f66"/>
+  <path d="M19 47V17h12.5c8 0 12.5 4 12.5 10 0 3.8-2 6.8-5.5 8.3L46 47H35.8l-6-10H28v10H19Zm9-18h3.2c2.8 0 4.2-1.2 4.2-3.4S34 22.3 31.2 22.3H28V29Z" fill="#fffaf6"/>
+</svg>
