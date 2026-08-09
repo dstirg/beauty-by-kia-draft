@@ -99,6 +99,7 @@ lines.push(
   "",
   "INSERT OR IGNORE INTO application_settings (setting_key, setting_value) VALUES",
   "  ('business_name', 'Beauty by Kia'),",
+  "  ('business_phone', '501-522-0061'),",
   "  ('draft_label', 'Draft Review — Not Yet Live'),",
   "  ('app_environment', 'production'),",
   "  ('local_storage_fallback', 'false'),",
