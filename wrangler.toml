@@ -1,0 +1,21 @@
+name = "beauty-by-kia-draft"
+compatibility_date = "2026-08-01"
+pages_build_output_dir = "."
+
+[vars]
+APP_ENVIRONMENT = "development"
+LOCAL_STORAGE_FALLBACK = "true"
+PAYMENTS_ENABLED = "false"
+SESSION_TTL_SECONDS = "14400"
+
+[env.production.vars]
+APP_ENVIRONMENT = "production"
+LOCAL_STORAGE_FALLBACK = "false"
+PAYMENTS_ENABLED = "false"
+SESSION_TTL_SECONDS = "14400"
+
+# D1 and R2 resource IDs are intentionally absent. Configure these bindings in
+# Cloudflare Pages after the owner creates the resources:
+#   DB               -> D1 database
+#   PUBLIC_GALLERY   -> private R2 bucket served only through approved routes
+#   PRIVATE_UPLOADS  -> private R2 bucket with no public development URL
