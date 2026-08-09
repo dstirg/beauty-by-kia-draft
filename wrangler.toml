@@ -1,14 +1,8 @@
-name = "beauty-by-kia-draft"
+name = "beauty-by-kia"
 compatibility_date = "2026-08-01"
-pages_build_output_dir = "."
+pages_build_output_dir = "./dist"
 
 [vars]
-APP_ENVIRONMENT = "development"
-LOCAL_STORAGE_FALLBACK = "true"
-PAYMENTS_ENABLED = "false"
-SESSION_TTL_SECONDS = "14400"
-
-[env.production.vars]
 APP_ENVIRONMENT = "production"
 LOCAL_STORAGE_FALLBACK = "false"
 PAYMENTS_ENABLED = "false"
