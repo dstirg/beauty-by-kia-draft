@@ -12,6 +12,7 @@ import {
   sessionCookie,
   sha256,
   verifyPin,
+  PBKDF2_ITERATIONS,
   SESSION_COOKIE
 } from "../_lib/security.js";
 import {
@@ -175,7 +176,7 @@ async function handleSetup(request, env) {
   if (existing || setting?.setting_value === "true") throw new RequestError("Administrator setup is already complete.", 409, "setup_complete");
   let credential;
   try {
-    credential = await hashPin(pin);
+    credential = await hashPin(pin, null, PBKDF2_ITERATIONS, env.SESSION_SECRET);
   } catch (error) {
     console.error({ message: "Administrator credential hashing failed", errorName: error?.name || "Error" });
     throw new RequestError("Administrator setup is temporarily unavailable.", 503, "setup_hash_failed");
@@ -230,8 +231,8 @@ async function handleLogin(request, env) {
   const account = isValidEmail(email)
     ? await env.DB.prepare("SELECT * FROM admin_accounts WHERE email = ? COLLATE NOCASE AND is_active = 1").bind(email).first()
     : null;
-  const record = account || { pin_salt: DUMMY_SALT, pin_hash: (await hashPin("000000", DUMMY_SALT)).hash, pin_iterations: 310000 };
-  const pinOk = isValidPin(pin) ? await verifyPin(pin, record) : false;
+  const record = account || { pin_salt: DUMMY_SALT, pin_hash: (await hashPin("000000", DUMMY_SALT, PBKDF2_ITERATIONS, env.SESSION_SECRET)).hash, pin_iterations: PBKDF2_ITERATIONS };
+  const pinOk = isValidPin(pin) ? await verifyPin(pin, record, env.SESSION_SECRET) : false;
   const isLocked = account?.locked_until && new Date(account.locked_until).getTime() > Date.now();
   if (!turnstileOk || !account || !pinOk || isLocked) {
     await recordLoginAttempt(env, request, email, false, !turnstileOk ? "turnstile" : isLocked ? "locked" : "credentials");
@@ -299,8 +300,8 @@ async function handlePinChange(request, env) {
     throw new RequestError("PIN change information is not valid.");
   }
   const account = await env.DB.prepare("SELECT * FROM admin_accounts WHERE id = ?").bind(session.admin_account_id).first();
-  if (!await verifyPin(currentPin, account)) throw new RequestError("PIN change information is not valid.", 403, "pin_change_rejected");
-  const credential = await hashPin(newPin);
+  if (!await verifyPin(currentPin, account, env.SESSION_SECRET)) throw new RequestError("PIN change information is not valid.", 403, "pin_change_rejected");
+  const credential = await hashPin(newPin, null, PBKDF2_ITERATIONS, env.SESSION_SECRET);
   await env.DB.batch([
     env.DB.prepare("UPDATE admin_accounts SET pin_salt = ?, pin_hash = ?, pin_iterations = ?, pin_changed_at = ?, updated_at = ? WHERE id = ?")
       .bind(credential.salt, credential.hash, credential.iterations, nowIso(), nowIso(), account.id),

@@ -35,6 +35,14 @@ test("incorrect PIN verification fails and constant-time comparison works", asyn
   assert.equal(constantTimeEqual("same", "different"), false);
 });
 
+test("server-only PIN pepper is required to reproduce a production credential", async () => {
+  const credential = await hashPin("123456", null, undefined, "server-only-pepper");
+  const record = { pin_salt: credential.salt, pin_hash: credential.hash, pin_iterations: credential.iterations };
+  assert.equal(await verifyPin("123456", record, "server-only-pepper"), true);
+  assert.equal(await verifyPin("123456", record, "different-pepper"), false);
+  assert.equal(await verifyPin("123456", record), false);
+});
+
 test("session cookie uses the required security attributes", () => {
   const cookie = sessionCookie("opaque-session-value", 3600);
   for (const attribute of ["HttpOnly", "Secure", "SameSite=Strict", "Path=/api", "Max-Age=3600"]) assert.match(cookie, new RegExp(attribute));

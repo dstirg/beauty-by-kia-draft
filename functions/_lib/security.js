@@ -2,8 +2,12 @@ const encoder = new TextEncoder();
 
 export const PIN_PATTERN = /^\d{6,12}$/;
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-export const PBKDF2_ITERATIONS = 310000;
+// Cloudflare's free Workers tier has a 10 ms CPU allowance. A server-only,
+// domain-separated pepper protects the low-entropy PIN if D1 is exposed while
+// 100,000 native PBKDF2 rounds keep the operation within the edge runtime.
+export const PBKDF2_ITERATIONS = 100000;
 export const SESSION_COOKIE = "bbk_admin_session";
+const PIN_PEPPER_CONTEXT = "beauty-by-kia-admin-pin-v1";
 
 export function isValidPin(value) {
   return typeof value === "string" && PIN_PATTERN.test(value);
@@ -41,10 +45,22 @@ export async function sha256(value) {
   return bytesToBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
 }
 
-export async function hashPin(pin, salt = null, iterations = PBKDF2_ITERATIONS) {
+async function pinKeyMaterial(pin, pepper) {
+  if (!pepper) return encoder.encode(pin);
+  const pepperKey = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(pepper),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  return new Uint8Array(await crypto.subtle.sign("HMAC", pepperKey, encoder.encode(`${PIN_PEPPER_CONTEXT}:${pin}`)));
+}
+
+export async function hashPin(pin, salt = null, iterations = PBKDF2_ITERATIONS, pepper = "") {
   if (!isValidPin(pin)) throw new TypeError("PIN must contain 6–12 numeric digits.");
   const saltBytes = salt ? base64UrlToBytes(salt) : crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey("raw", encoder.encode(pin), "PBKDF2", false, ["deriveBits"]);
+  const key = await crypto.subtle.importKey("raw", await pinKeyMaterial(pin, pepper), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
     { name: "PBKDF2", hash: "SHA-256", salt: saltBytes, iterations },
     key,
@@ -68,9 +84,9 @@ export function constantTimeEqual(left, right) {
   return difference === 0;
 }
 
-export async function verifyPin(pin, record) {
+export async function verifyPin(pin, record, pepper = "") {
   if (!isValidPin(pin) || !record?.pin_salt || !record?.pin_hash) return false;
-  const candidate = await hashPin(pin, record.pin_salt, Number(record.pin_iterations));
+  const candidate = await hashPin(pin, record.pin_salt, Number(record.pin_iterations), pepper);
   return constantTimeEqual(candidate.hash, record.pin_hash);
 }
 
