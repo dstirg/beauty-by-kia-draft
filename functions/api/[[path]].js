@@ -29,6 +29,7 @@ const AUTH_FAILURE_LIMIT = 5;
 const AUTH_WINDOW_MINUTES = 15;
 const LOCKOUT_MINUTES = 15;
 const PRIVATE_UPLOAD_RETENTION_DAYS = 90;
+const PRIVATE_UPLOAD_TYPES = Object.freeze(["current_look", "inspiration"]);
 const DUMMY_SALT = "bm90LWEtc2VjcmV0LXNhbHQ";
 
 function response(payload, status = 200, extraHeaders = {}, cookies = []) {
@@ -405,9 +406,25 @@ async function handleCreateBooking(request, env) {
       minimum_price_cents_snapshot, maximum_price_cents_snapshot) VALUES (?, ?, ?, ?, ?, ?)`)
       .bind(bookingId, addOn.id, addOn.name, addOn.price_type, addOn.minimum_price_cents, addOn.maximum_price_cents));
   }
-  const uploadIds = Array.isArray(body.privateUploadIds) ? [...new Set(body.privateUploadIds)].slice(0, 12) : [];
+  const uploadIds = Array.isArray(body.privateUploadIds) ? [...new Set(body.privateUploadIds.filter(value => typeof value === "string"))] : [];
+  if (uploadIds.length > 2) throw new RequestError("A maximum of two appointment photos is allowed.");
+  if (uploadIds.length) {
+    const claimToken = requiredString(body.privateUploadClaimToken, "Upload authorization", 256);
+    const claimHash = await sha256(claimToken);
+    const placeholders = uploadIds.map(() => "?").join(",");
+    const uploads = await env.DB.prepare(`SELECT id, upload_type FROM private_upload_metadata
+      WHERE id IN (${placeholders}) AND claim_token_hash=? AND booking_id IS NULL AND deleted_at IS NULL`)
+      .bind(...uploadIds, claimHash).all();
+    if (uploads.results.length !== uploadIds.length) throw new RequestError("One or more appointment photos could not be authorized.", 403);
+    const uploadTypes = uploads.results.map(item => item.upload_type);
+    if (new Set(uploadTypes).size !== uploadTypes.length || uploadTypes.some(type => !PRIVATE_UPLOAD_TYPES.includes(type))) {
+      throw new RequestError("Only one current-look photo and one inspiration photo are allowed.");
+    }
+  } else if (!body.turnstileToken) {
+    throw new RequestError("Request verification failed.", 403);
+  }
   for (const uploadId of uploadIds) {
-    statements.push(env.DB.prepare("UPDATE private_upload_metadata SET booking_id = ?, updated_at = ? WHERE id = ? AND booking_id IS NULL AND deleted_at IS NULL")
+    statements.push(env.DB.prepare("UPDATE private_upload_metadata SET booking_id = ?, claim_token_hash=NULL, updated_at = ? WHERE id = ? AND booking_id IS NULL AND deleted_at IS NULL")
       .bind(bookingId, nowIso(), uploadId));
   }
   await env.DB.batch(statements);
@@ -416,16 +433,17 @@ async function handleCreateBooking(request, env) {
 
 async function loadAdminState(env) {
   const catalog = await catalogRows(env);
-  const [bookings, blockedDates, calendarBlocks, auditLogs, galleryImages] = await Promise.all([
+  const [bookings, blockedDates, calendarBlocks, auditLogs, galleryImages, privateUploads] = await Promise.all([
     env.DB.prepare(`SELECT b.*, bs.service_name_snapshot AS service_name, bs.duration_minutes_snapshot
       FROM bookings b LEFT JOIN booking_services bs ON bs.booking_id = b.id
       WHERE b.archived_at IS NULL ORDER BY b.created_at DESC LIMIT 500`).all(),
     env.DB.prepare("SELECT * FROM blocked_dates WHERE archived_at IS NULL ORDER BY blocked_date").all(),
     env.DB.prepare("SELECT * FROM calendar_blocks WHERE archived_at IS NULL ORDER BY starts_at").all(),
     env.DB.prepare("SELECT action, entity_type, entity_id, details_json, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 200").all(),
-    env.DB.prepare("SELECT id, service_id, caption, alt_text, sort_order, is_featured, is_published FROM gallery_images WHERE archived_at IS NULL ORDER BY service_id, sort_order").all()
+    env.DB.prepare("SELECT id, service_id, caption, alt_text, sort_order, is_featured, is_published FROM gallery_images WHERE archived_at IS NULL ORDER BY service_id, sort_order").all(),
+    env.DB.prepare("SELECT id, booking_id, upload_type FROM private_upload_metadata WHERE booking_id IS NOT NULL AND deleted_at IS NULL ORDER BY created_at").all()
   ]);
-  return { ...catalog, bookings: bookings.results, blockedDates: blockedDates.results, calendarBlocks: calendarBlocks.results, gallery: galleryImages.results.map(image => ({ ...image, url: `/api/gallery/${image.id}/content` })), auditLogs: auditLogs.results.map(row => ({ ...row, details: parseJson(row.details_json, {}) })) };
+  return { ...catalog, bookings: bookings.results, blockedDates: blockedDates.results, calendarBlocks: calendarBlocks.results, gallery: galleryImages.results.map(image => ({ ...image, url: `/api/gallery/${image.id}/content` })), privateUploads: privateUploads.results.map(upload => ({ ...upload, url: `/api/admin/uploads/${upload.id}/content` })), auditLogs: auditLogs.results.map(row => ({ ...row, details: parseJson(row.details_json, {}) })) };
 }
 
 async function handleAdminState(request, env) {
@@ -722,22 +740,47 @@ async function handleGalleryDelete(request, env, imageId) {
 
 async function handlePrivateUpload(request, env) {
   requireBindings(env, ["DB", "PRIVATE_UPLOADS"]);
-  const { form, image, contentHash } = await imageFromRequest(request);
+  const form = await request.formData();
   if (!await verifyTurnstile(request, env, String(form.get("turnstileToken") || ""))) throw new RequestError("Request verification failed.", 403);
-  const uploadType = requiredString(form.get("uploadType"), "Upload type", 80);
-  const id = uuid();
-  const objectKey = `private-client-uploads/${new Date().toISOString().slice(0, 10)}/${id}.${image.extension}`;
-  await env.PRIVATE_UPLOADS.put(objectKey, image.normalized, { httpMetadata: { contentType: image.mimeType, cacheControl: "private, no-store" }, customMetadata: { uploadId: id } });
+  const requested = [
+    { field: "currentLook", uploadType: "current_look" },
+    { field: "inspiration", uploadType: "inspiration" }
+  ];
+  const uploads = [];
+  for (const item of requested) {
+    const values = form.getAll(item.field);
+    if (values.length > 1) throw new RequestError(`Only one ${item.uploadType === "current_look" ? "current-look" : "inspiration"} photo is allowed.`);
+    if (!values.length) continue;
+    const file = values[0];
+    if (!(file instanceof File)) throw new RequestError("A valid image file is required.");
+    const image = validateAndNormalizeImage(await file.arrayBuffer());
+    uploads.push({ ...item, image, contentHash: await sha256(image.normalized) });
+  }
+  if (!uploads.length || uploads.length > 2) throw new RequestError("Add one current-look photo, one inspiration photo, or both.");
+  if (new Set(uploads.map(item => item.contentHash)).size !== uploads.length) throw new RequestError("Please use a different image for each photo type.");
+
+  const claimToken = randomToken(32);
+  const claimHash = await sha256(claimToken);
   const deleteAfter = new Date(Date.now() + PRIVATE_UPLOAD_RETENTION_DAYS * 86400000).toISOString();
+  const created = [];
   try {
-    await env.DB.prepare(`INSERT INTO private_upload_metadata (id, object_key, upload_type, content_sha256, mime_type, byte_size, width, height, retention_delete_after)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, objectKey, uploadType, contentHash, image.mimeType, image.normalized.byteLength, image.width, image.height, deleteAfter).run();
+    for (const upload of uploads) {
+      const id = uuid();
+      const objectKey = `private-client-uploads/${new Date().toISOString().slice(0, 10)}/${id}.${upload.image.extension}`;
+      created.push({ id, objectKey, uploadType: upload.uploadType });
+      await env.PRIVATE_UPLOADS.put(objectKey, upload.image.normalized, { httpMetadata: { contentType: upload.image.mimeType, cacheControl: "private, no-store" }, customMetadata: { uploadId: id, uploadType: upload.uploadType } });
+      await env.DB.prepare(`INSERT INTO private_upload_metadata (id, object_key, upload_type, claim_token_hash, content_sha256, mime_type, byte_size, width, height, retention_delete_after)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(id, objectKey, upload.uploadType, claimHash, upload.contentHash, upload.image.mimeType, upload.image.normalized.byteLength, upload.image.width, upload.image.height, deleteAfter).run();
+    }
   } catch (error) {
-    await env.PRIVATE_UPLOADS.delete(objectKey);
+    for (const item of created) {
+      await env.PRIVATE_UPLOADS.delete(item.objectKey);
+      await env.DB.prepare("DELETE FROM private_upload_metadata WHERE id=? AND booking_id IS NULL").bind(item.id).run();
+    }
     throw error;
   }
-  return response({ ok: true, upload: { id, uploadType } }, 201);
+  return response({ ok: true, uploads: created.map(({ id, uploadType }) => ({ id, uploadType })), claimToken }, 201);
 }
 
 async function handlePrivateContent(request, env, uploadId) {

@@ -107,4 +107,4 @@ Gallery uploads:
 - remain private until D1 says the image is published; and
 - are streamed through controlled Pages Function routes.
 
-Private uploads use a different object namespace and bucket, never receive public URLs, and are streamed only to an authenticated administrator. D1 records a default 90-day post-upload deletion date; the owner should review retention with Brookia before launch.
+Private uploads use a different object namespace and bucket, never receive public URLs, and are streamed only to an authenticated administrator. Each booking accepts at most one current-look photo and one inspiration photo, using JPG or PNG files no larger than 8 MiB each. A one-use cryptographic claim token prevents another booking from attaching uploaded files. D1 records a default 90-day post-upload deletion date; the owner should review retention with Brookia before launch.

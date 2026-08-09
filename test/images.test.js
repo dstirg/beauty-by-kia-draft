@@ -53,3 +53,14 @@ test("server-generated public and private object namespaces remain separated", (
   assert.equal(source.includes("PRIVATE_UPLOADS.put"), true);
   assert.equal(source.includes("handlePrivateContent"), true);
 });
+
+test("private appointment uploads allow only one current-look and one inspiration photo", () => {
+  const source = fs.readFileSync("functions/api/[[path]].js", "utf8");
+  const client = fs.readFileSync("index.html", "utf8");
+  assert.equal(source.includes('PRIVATE_UPLOAD_TYPES = Object.freeze(["current_look", "inspiration"])'), true);
+  assert.equal(source.includes("if (uploadIds.length > 2)"), true);
+  assert.equal(source.includes('form.getAll(item.field)'), true);
+  assert.equal(source.includes("claim_token_hash"), true);
+  assert.equal(client.includes('accept="image/jpeg,image/png"'), true);
+  assert.equal(client.includes("Maximum two photos: one current-look photo and one inspiration photo."), true);
+});

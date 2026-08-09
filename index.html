@@ -860,7 +860,9 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         notes: ""
       },
       currentHairPhoto: "",
+      currentHairFile: null,
       inspirationPhoto: "",
+      inspirationFile: null,
       date: "",
       time: "",
       acceptedPolicies: false
@@ -1007,20 +1009,25 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       const keyMap = { name: "business_name", tagline: "business_tagline", phone: "business_phone", email: "business_email", city: "business_city", instagram: "business_instagram", address: "business_address", addressVisibility: "business_addressVisibility" };
       for (const [property, key] of Object.entries(keyMap)) if (typeof payload.settings[key] === "string") state.business[property] = payload.settings[key];
     }
-    if (Array.isArray(payload.bookings)) state.bookings = payload.bookings.map(item => ({
-      ...item,
-      id: item.id,
-      reference: item.reference,
-      date: (item.appointment_start_at || item.requested_start_at || "").slice(0, 10),
-      time: new Date(item.appointment_start_at || item.requested_start_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-      client: { name: item.client_name, email: item.client_email, phone: item.client_phone },
-      serviceName: item.service_name || "Service",
-      total: Number(item.approved_final_total_cents ?? item.estimated_total_cents) / 100,
-      deposit: Number(item.deposit_cents) / 100,
-      balance: Number(item.remaining_balance_cents) / 100,
-      depositStatus: item.payment_status,
-      status: item.status
-    }));
+    if (Array.isArray(payload.bookings)) {
+      const privateUploads = Array.isArray(payload.privateUploads) ? payload.privateUploads : [];
+      state.bookings = payload.bookings.map(item => ({
+        ...item,
+        id: item.id,
+        reference: item.reference,
+        date: (item.appointment_start_at || item.requested_start_at || "").slice(0, 10),
+        time: new Date(item.appointment_start_at || item.requested_start_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+        client: { name: item.client_name, email: item.client_email, phone: item.client_phone },
+        serviceName: item.service_name || "Service",
+        currentHairPhoto: privateUploads.find(upload => upload.booking_id === item.id && upload.upload_type === "current_look")?.url || "",
+        inspirationPhoto: privateUploads.find(upload => upload.booking_id === item.id && upload.upload_type === "inspiration")?.url || "",
+        total: Number(item.approved_final_total_cents ?? item.estimated_total_cents) / 100,
+        deposit: Number(item.deposit_cents) / 100,
+        balance: Number(item.remaining_balance_cents) / 100,
+        depositStatus: item.payment_status,
+        status: item.status
+      }));
+    }
   }
 
   async function hydrateProductionState() {
@@ -1229,9 +1236,10 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           ${service.questionnaire === "pressOn" ? `<label>Nail length<input name="nailLength" required value="${escapeHtml(booking.client.nailLength || "")}" /></label><label>Nail shape<input name="nailShape" required value="${escapeHtml(booking.client.nailShape || "")}" /></label><label>Preferred colors<input name="preferredColors" required value="${escapeHtml(booking.client.preferredColors || "")}" /></label><label>Needed-by date (not guaranteed)<input type="date" name="neededBy" required value="${escapeHtml(booking.client.neededBy || "")}" /></label><label class="full-span">Design inspiration and custom notes<textarea name="designNotes" required>${escapeHtml(booking.client.designNotes || "")}</textarea></label><p class="helper-text full-span">Completion or delivery is not promised until Kia confirms it.</p>` : ""}
           ${service.questionnaire === "wedding" ? `<label>Wedding date<input type="date" name="weddingDate" required /></label><label>Getting-ready location<input name="gettingReadyLocation" required /></label><label>Ceremony time<input type="time" name="ceremonyTime" required /></label><label>Number receiving makeup<input type="number" min="1" name="partySize" required /></label><label>Makeup trial requested?<select name="trialRequested"><option>No</option><option>Yes</option></select></label><label class="full-span">Additional wedding notes<textarea name="weddingNotes"></textarea></label>` : ""}
           <label class="full-span">Special requests or important details<textarea name="notes" rows="3" placeholder="Colors, design, scalp concerns, or anything Kia should know">${escapeHtml(booking.client.notes)}</textarea></label>
-          <label>Current hair photo<input type="file" id="current-hair-upload" accept="image/*" /></label>
-          <label>Inspiration photo<input type="file" id="inspiration-upload" accept="image/*" /></label>
+          <label>Current-look photo<input type="file" id="current-hair-upload" accept="image/jpeg,image/png" /></label>
+          <label>Inspiration photo<input type="file" id="inspiration-upload" accept="image/jpeg,image/png" /></label>
         </div>
+        <p class="helper-text">Maximum two photos: one current-look photo and one inspiration photo. JPG and PNG only, up to 8 MB each. For additional pictures, contact Beauty by Kia directly after submitting your request.</p>
         <div class="form-grid two-columns">
           <div id="current-hair-preview" class="upload-preview">${booking.currentHairPhoto ? `<img src="${booking.currentHairPhoto}" alt="Current hair preview" /><span>Current hair photo added</span>` : "<span>No current-hair photo added yet.</span>"}</div>
           <div id="inspiration-preview" class="upload-preview">${booking.inspirationPhoto ? `<img src="${booking.inspirationPhoto}" alt="Inspiration preview" /><span>Inspiration photo added</span>` : "<span>No inspiration photo added yet.</span>"}</div>
@@ -1357,8 +1365,8 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       }
       setBookingStep(3);
     });
-    document.getElementById("current-hair-upload")?.addEventListener("change", event => handleImageUpload(event, "currentHairPhoto", "current-hair-preview", "Current hair photo added"));
-    document.getElementById("inspiration-upload")?.addEventListener("change", event => handleImageUpload(event, "inspirationPhoto", "inspiration-preview", "Inspiration photo added"));
+    document.getElementById("current-hair-upload")?.addEventListener("change", event => handleImageUpload(event, "currentHairPhoto", "currentHairFile", "current-hair-preview", "Current-look photo added"));
+    document.getElementById("inspiration-upload")?.addEventListener("change", event => handleImageUpload(event, "inspirationPhoto", "inspirationFile", "inspiration-preview", "Inspiration photo added"));
     document.querySelectorAll("[data-date]").forEach(button => button.addEventListener("click", () => {
       booking.date = button.dataset.date;
       booking.time = "";
@@ -1378,20 +1386,23 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     document.getElementById("complete-booking")?.addEventListener("click", completeBooking);
   }
 
-  async function handleImageUpload(event, key, previewId, message) {
+  async function handleImageUpload(event, previewKey, fileKey, previewId, message) {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      showToast("Please select an image file.");
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      event.target.value = "";
+      showToast("Please select a JPG or PNG image.");
       return;
     }
-    if (file.size > 12 * 1024 * 1024) {
-      showToast("Please choose an image smaller than 12 MB.");
+    if (file.size > 8 * 1024 * 1024) {
+      event.target.value = "";
+      showToast("Please choose an image no larger than 8 MB.");
       return;
     }
     try {
-      booking[key] = await resizeImage(file, 700, 0.76);
-      document.getElementById(previewId).innerHTML = `<img src="${booking[key]}" alt="Uploaded preview" /><span>${message}</span>`;
+      booking[fileKey] = file;
+      booking[previewKey] = await resizeImage(file, 700, 0.76);
+      document.getElementById(previewId).innerHTML = `<img src="${booking[previewKey]}" alt="Uploaded preview" /><span>${message}</span>`;
     } catch (error) {
       console.error(error);
       showToast("The photo could not be processed. Please choose another image.");
@@ -1426,6 +1437,22 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const prices = calculateBookingPrice();
     if (!USE_LOCAL_FALLBACK) {
       try {
+        const turnstileToken = window.turnstile?.getResponse?.() || "";
+        const selectedPhotos = [
+          { field: "currentLook", file: booking.currentHairFile },
+          { field: "inspiration", file: booking.inspirationFile }
+        ].filter(item => item.file instanceof File);
+        let privateUploadIds = [];
+        let privateUploadClaimToken = "";
+        if (selectedPhotos.length) {
+          if (!turnstileToken) throw new Error("Please complete the security verification before submitting photos.");
+          const uploadForm = new FormData();
+          for (const photo of selectedPhotos) uploadForm.set(photo.field, photo.file);
+          uploadForm.set("turnstileToken", turnstileToken);
+          const uploadResult = await apiRequest("/uploads/private", { method: "POST", body: uploadForm });
+          privateUploadIds = uploadResult.uploads.map(item => item.id);
+          privateUploadClaimToken = uploadResult.claimToken;
+        }
         const result = await apiRequest("/bookings", {
           method: "POST",
           body: JSON.stringify({
@@ -1434,7 +1461,9 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
             client: booking.client,
             requestedStartAt: new Date(`${booking.date}T${booking.time}:00`).toISOString(),
             acceptedPolicies: true,
-            turnstileToken: window.turnstile?.getResponse?.() || ""
+            privateUploadIds,
+            privateUploadClaimToken,
+            turnstileToken: selectedPhotos.length ? "" : turnstileToken
           })
         });
         const record = {

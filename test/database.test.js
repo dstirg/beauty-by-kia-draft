@@ -6,7 +6,9 @@ import { appointmentWindow, intervalsOverlap, statusReleasesSlot } from "../func
 
 function database() {
   const db = new DatabaseSync(":memory:");
-  db.exec(fs.readFileSync("migrations/0001_cloudflare_foundation.sql", "utf8"));
+  for (const file of fs.readdirSync("migrations").filter(file => file.endsWith(".sql")).sort()) {
+    db.exec(fs.readFileSync(`migrations/${file}`, "utf8"));
+  }
   db.exec(fs.readFileSync("seed/approved-foundation.sql", "utf8"));
   return db;
 }

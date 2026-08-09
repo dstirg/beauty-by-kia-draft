@@ -20,9 +20,11 @@ npx wrangler pages deploy . --project-name beauty-by-kia-draft --branch codex/cl
 ## 2. Create and seed D1
 
 ```text
-npx wrangler d1 create beauty-by-kia-production
-npx wrangler d1 migrations apply beauty-by-kia-production --remote
-npx wrangler d1 execute beauty-by-kia-production --remote --file seed/approved-foundation.sql
+npx wrangler d1 create beauty-by-kia-db
+npx wrangler d1 execute beauty-by-kia-db --remote --file migrations/0001_cloudflare_foundation.sql
+npx wrangler d1 execute beauty-by-kia-db --remote --command "INSERT OR IGNORE INTO d1_migrations (name) VALUES ('0001_cloudflare_foundation.sql');"
+npx wrangler d1 migrations apply beauty-by-kia-db --remote
+npx wrangler d1 execute beauty-by-kia-db --remote --file seed/approved-foundation.sql
 ```
 
 In the Pages project’s preview and production binding settings, add the D1 database with binding name `DB`. Use separate preview and production databases if the account permits it; never point an unreviewed pull-request preview at live customer data.
@@ -30,7 +32,7 @@ In the Pages project’s preview and production binding settings, add the D1 dat
 Verify counts:
 
 ```text
-npx wrangler d1 execute beauty-by-kia-production --remote --command "SELECT COUNT(*) AS services FROM services; SELECT COUNT(*) AS add_ons FROM add_ons;"
+npx wrangler d1 execute beauty-by-kia-db --remote --command "SELECT COUNT(*) AS services FROM services; SELECT COUNT(*) AS add_ons FROM add_ons;"
 ```
 
 Expected counts are 30 services and 10 add-ons. Re-running the approved seed must not create duplicates.

@@ -4,9 +4,10 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const migration = fs.readFileSync(path.join(root, "migrations", "0001_cloudflare_foundation.sql"), "utf8");
 const database = new DatabaseSync(":memory:");
-database.exec(migration);
+for (const file of fs.readdirSync(path.join(root, "migrations")).filter(file => file.endsWith(".sql")).sort()) {
+  database.exec(fs.readFileSync(path.join(root, "migrations", file), "utf8"));
+}
 
 const required = [
   "services", "service_prices", "service_durations", "add_ons", "service_add_ons",
@@ -24,5 +25,7 @@ const triggers = new Set(database.prepare("SELECT name FROM sqlite_master WHERE 
 for (const trigger of ["bookings_prevent_overlap_insert", "bookings_prevent_overlap_update", "booking_price_snapshots_immutable_update"]) {
   if (!triggers.has(trigger)) throw new Error(`Missing required trigger: ${trigger}`);
 }
+const privateUploadColumns = new Set(database.prepare("PRAGMA table_info(private_upload_metadata)").all().map(row => row.name));
+if (!privateUploadColumns.has("claim_token_hash")) throw new Error("Missing private upload authorization column.");
 
 console.log(`Verified D1-compatible migration with ${required.length} required tables.`);

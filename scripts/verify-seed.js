@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const database = new DatabaseSync(":memory:");
-database.exec(fs.readFileSync(path.join(root, "migrations", "0001_cloudflare_foundation.sql"), "utf8"));
+for (const file of fs.readdirSync(path.join(root, "migrations")).filter(file => file.endsWith(".sql")).sort()) {
+  database.exec(fs.readFileSync(path.join(root, "migrations", file), "utf8"));
+}
 const seed = fs.readFileSync(path.join(root, "seed", "approved-foundation.sql"), "utf8");
 database.exec(seed);
 database.exec(seed);
