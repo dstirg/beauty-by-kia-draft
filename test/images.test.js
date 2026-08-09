@@ -54,6 +54,14 @@ test("server-generated public and private object namespaces remain separated", (
   assert.equal(source.includes("handlePrivateContent"), true);
 });
 
+test("production Pages configuration binds both R2 buckets", () => {
+  const config = fs.readFileSync("wrangler.toml", "utf8");
+  assert.equal(config.includes('binding = "PUBLIC_GALLERY"'), true);
+  assert.equal(config.includes('bucket_name = "beauty-by-kia-public-gallery"'), true);
+  assert.equal(config.includes('binding = "PRIVATE_UPLOADS"'), true);
+  assert.equal(config.includes('bucket_name = "beauty-by-kia-private-uploads"'), true);
+});
+
 test("private appointment uploads allow only one current-look and one inspiration photo", () => {
   const source = fs.readFileSync("functions/api/[[path]].js", "utf8");
   const client = fs.readFileSync("index.html", "utf8");

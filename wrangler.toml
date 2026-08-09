@@ -13,6 +13,10 @@ binding = "DB"
 database_name = "beauty-by-kia-db"
 database_id = "06f0e880-056c-475d-adda-e9689dd2c843"
 
-# Configure R2 bindings after the owner creates the resources:
-#   PUBLIC_GALLERY   -> private R2 bucket served only through approved routes
-#   PRIVATE_UPLOADS  -> private R2 bucket with no public development URL
+[[r2_buckets]]
+binding = "PUBLIC_GALLERY"
+bucket_name = "beauty-by-kia-public-gallery"
+
+[[r2_buckets]]
+binding = "PRIVATE_UPLOADS"
+bucket_name = "beauty-by-kia-private-uploads"
