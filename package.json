@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build.js",
     "test": "node --test",
     "check": "node --check functions/api/[[path]].js && node scripts/verify-client.js && node scripts/verify-migrations.js && node scripts/verify-tracked-secrets.js",
     "verify:migrations": "node scripts/verify-migrations.js",
