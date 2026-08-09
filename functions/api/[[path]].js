@@ -173,19 +173,33 @@ async function handleSetup(request, env) {
   const existing = await env.DB.prepare("SELECT id FROM admin_accounts LIMIT 1").first();
   const setting = await env.DB.prepare("SELECT setting_value FROM application_settings WHERE setting_key = 'initial_admin_setup_complete'").first();
   if (existing || setting?.setting_value === "true") throw new RequestError("Administrator setup is already complete.", 409, "setup_complete");
-  const credential = await hashPin(pin);
+  let credential;
+  try {
+    credential = await hashPin(pin);
+  } catch (error) {
+    console.error({ message: "Administrator credential hashing failed", errorName: error?.name || "Error" });
+    throw new RequestError("Administrator setup is temporarily unavailable.", 503, "setup_hash_failed");
+  }
   const adminId = uuid();
-  await env.DB.batch([
-    env.DB.prepare(
-      "INSERT INTO admin_accounts (id, display_name, email, pin_salt, pin_hash, pin_iterations, is_primary) VALUES (?, 'Brookia', ?, ?, ?, ?, 1)"
-    ).bind(adminId, email, credential.salt, credential.hash, credential.iterations),
-    env.DB.prepare(
-      `INSERT INTO application_settings (setting_key, setting_value, is_sensitive)
-       VALUES ('initial_admin_setup_complete', 'true', 0)
-       ON CONFLICT(setting_key) DO UPDATE SET setting_value = 'true', updated_at = CURRENT_TIMESTAMP`
-    )
-  ]);
-  await audit(env, request, "admin_setup", adminId, "admin_account", adminId, { primary: true });
+  try {
+    const ipHash = await clientFingerprint(request, env);
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO admin_accounts (id, display_name, email, pin_salt, pin_hash, pin_iterations, is_primary) VALUES (?, 'Brookia', ?, ?, ?, ?, 1)"
+      ).bind(adminId, email, credential.salt, credential.hash, credential.iterations),
+      env.DB.prepare(
+        `INSERT INTO application_settings (setting_key, setting_value, is_sensitive)
+         VALUES ('initial_admin_setup_complete', 'true', 0)
+         ON CONFLICT(setting_key) DO UPDATE SET setting_value = 'true', updated_at = CURRENT_TIMESTAMP`
+      ),
+      env.DB.prepare(
+        "INSERT INTO audit_logs (id, admin_account_id, action, entity_type, entity_id, details_json, ip_hash) VALUES (?, ?, 'admin_setup', 'admin_account', ?, ?, ?)"
+      ).bind(uuid(), adminId, adminId, JSON.stringify({ primary: true }), ipHash)
+    ]);
+  } catch (error) {
+    console.error({ message: "Atomic administrator setup write failed", errorName: error?.name || "Error" });
+    throw new RequestError("Administrator setup is temporarily unavailable.", 503, "setup_write_failed");
+  }
   return response({ ok: true, setupComplete: true }, 201);
 }
 

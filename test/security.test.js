@@ -60,7 +60,7 @@ test("repository does not contain the private setup credential", () => {
   for (const file of files) assert.equal(fs.readFileSync(file).toString("utf8").includes(credential), false, `sensitive value found in ${file}`);
 });
 
-test("worker implements Turnstile, rate limits, lockout, session revocation, and one-time setup", () => {
+test("worker implements Turnstile, rate limits, lockout, session revocation, and atomic one-time setup diagnostics", () => {
   const source = fs.readFileSync("functions/api/[[path]].js", "utf8");
-  for (const marker of ["siteverify", "AUTH_FAILURE_LIMIT", "locked_until", "admin_sessions", "revoked_at", "setup_complete", "initial_admin_setup_complete", "genericLoginError"]) assert.equal(source.includes(marker), true, `missing ${marker}`);
+  for (const marker of ["siteverify", "AUTH_FAILURE_LIMIT", "locked_until", "admin_sessions", "revoked_at", "setup_complete", "initial_admin_setup_complete", "genericLoginError", "setup_hash_failed", "setup_write_failed", "'admin_setup'"]) assert.equal(source.includes(marker), true, `missing ${marker}`);
 });
