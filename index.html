@@ -1236,10 +1236,15 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           ${service.questionnaire === "pressOn" ? `<label>Nail length<input name="nailLength" required value="${escapeHtml(booking.client.nailLength || "")}" /></label><label>Nail shape<input name="nailShape" required value="${escapeHtml(booking.client.nailShape || "")}" /></label><label>Preferred colors<input name="preferredColors" required value="${escapeHtml(booking.client.preferredColors || "")}" /></label><label>Needed-by date (not guaranteed)<input type="date" name="neededBy" required value="${escapeHtml(booking.client.neededBy || "")}" /></label><label class="full-span">Design inspiration and custom notes<textarea name="designNotes" required>${escapeHtml(booking.client.designNotes || "")}</textarea></label><p class="helper-text full-span">Completion or delivery is not promised until Kia confirms it.</p>` : ""}
           ${service.questionnaire === "wedding" ? `<label>Wedding date<input type="date" name="weddingDate" required /></label><label>Getting-ready location<input name="gettingReadyLocation" required /></label><label>Ceremony time<input type="time" name="ceremonyTime" required /></label><label>Number receiving makeup<input type="number" min="1" name="partySize" required /></label><label>Makeup trial requested?<select name="trialRequested"><option>No</option><option>Yes</option></select></label><label class="full-span">Additional wedding notes<textarea name="weddingNotes"></textarea></label>` : ""}
           <label class="full-span">Special requests or important details<textarea name="notes" rows="3" placeholder="Colors, design, scalp concerns, or anything Kia should know">${escapeHtml(booking.client.notes)}</textarea></label>
-          <label>Current-look photo<input type="file" id="current-hair-upload" accept="image/jpeg,image/png" /></label>
+          <label>Current hair photo (may be required)<input type="file" id="current-hair-upload" accept="image/jpeg,image/png" /></label>
           <label>Inspiration photo<input type="file" id="inspiration-upload" accept="image/jpeg,image/png" /></label>
         </div>
-        <p class="helper-text">Maximum two photos: one current-look photo and one inspiration photo. JPG and PNG only, up to 8 MB each. For additional pictures, text or call Beauty by Kia at <a href="tel:+15015220061">501-522-0061</a> after submitting your request.</p>
+        <div class="notice notice-info" style="margin-top:16px">
+          <p>${service.requiredUploads?.includes("current")
+            ? "<strong>A current-hair photo is required for this service before you can submit your request.</strong> If Kia needs another view after reviewing your request, she will contact you."
+            : "A clear, current photo of your hair may be required before Kia can approve your appointment request. Upload one now if available. If Kia needs a photo or another view after reviewing your request, she will contact you."} Photos are used only to review and prepare for your requested service and are not posted publicly. Submitting this request does not confirm your appointment.</p>
+          <p class="helper-text" style="margin-bottom:0">JPG or PNG, up to 8 MB. Maximum: one current-hair photo and one inspiration photo. For additional pictures, text or call Beauty by Kia at <a href="tel:+15015220061">501-522-0061</a> after submitting your request.</p>
+        </div>
         <div class="form-grid two-columns">
           <div id="current-hair-preview" class="upload-preview">${booking.currentHairPhoto ? `<img src="${booking.currentHairPhoto}" alt="Current hair preview" /><span>Current hair photo added</span>` : "<span>No current-hair photo added yet.</span>"}</div>
           <div id="inspiration-preview" class="upload-preview">${booking.inspirationPhoto ? `<img src="${booking.inspirationPhoto}" alt="Inspiration preview" /><span>Inspiration photo added</span>` : "<span>No inspiration photo added yet.</span>"}</div>
@@ -1532,7 +1537,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         <div class="confirmation-icon">✓</div>
         <span class="eyebrow">${escapeHtml(record.reference)}</span>
         <h1>${isConsultation ? "Request submitted" : "You’re booked"}</h1>
-        <p>${isConsultation ? "Kia will review your photos and request before approving the final service price." : "Your appointment and prototype deposit have been recorded."}</p>
+        <p>${isConsultation ? "Kia will review your request before approving the final service price. If a current-hair photo or another view is needed, she will contact you. Your appointment is not confirmed until Kia approves it." : "Your appointment and prototype deposit have been recorded."}</p>
         <div class="confirmation-details summary-card">
           <div class="line-item"><span>Client</span><strong>${escapeHtml(record.client.name)}</strong></div>
           <div class="line-item"><span>Service</span><strong>${escapeHtml(record.serviceName)}</strong></div>
