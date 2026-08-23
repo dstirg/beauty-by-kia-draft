@@ -1,5 +1,5 @@
-const assert = require("node:assert/strict");
-require("./pricing.js");
+import assert from "node:assert/strict";
+await import("./pricing.js");
 const P = globalThis.BBKPricing;
 const byName = name => P.services.find(item => item.name === name);
 assert.deepEqual(P.calculate(byName("BBK Basic Glam"), [], { enabled:false }), { base:65, addOns:0, total:65, deposit:25, balance:40, consultation:false, promotional:false });

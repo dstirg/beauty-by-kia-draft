@@ -1,0 +1,22 @@
+name = "beauty-by-kia"
+compatibility_date = "2026-08-01"
+pages_build_output_dir = "./dist"
+
+[vars]
+APP_ENVIRONMENT = "production"
+LOCAL_STORAGE_FALLBACK = "false"
+PAYMENTS_ENABLED = "false"
+SESSION_TTL_SECONDS = "14400"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "beauty-by-kia-db"
+database_id = "06f0e880-056c-475d-adda-e9689dd2c843"
+
+[[r2_buckets]]
+binding = "PUBLIC_GALLERY"
+bucket_name = "beauty-by-kia-public-gallery"
+
+[[r2_buckets]]
+binding = "PRIVATE_UPLOADS"
+bucket_name = "beauty-by-kia-private-uploads"

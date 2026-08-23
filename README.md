@@ -1,20 +1,44 @@
 # Beauty by Kia — Draft Review
 
-This repository contains the review-only Beauty by Kia booking portal. The app remains labeled **Draft Review — Not Yet Live**.
+This repository contains the review-only Beauty by Kia booking portal. The application remains visibly labeled **Draft Review — Not Yet Live**. Stripe and automatic payment processing remain disabled; Kia may request and manually verify off-site Cash App or Zelle deposits after approving a booking request.
 
-## Approved pricing update
+## Cloudflare foundation
 
-The browser-based app includes Brookia’s approved Hair, Braids, Color, Weaves, Nails, and Makeup service catalog; variable add-ons; automatic $25/$40/$50 deposit tiers; estimated remaining balances; policy acceptance records; consultation and photo-review requirements; and an admin-controlled Grand Opening Special that is off by default.
+The approved 30-service catalog, 10 add-ons, prices, deposit tiers, policies, and disabled Grand Opening Special are preserved. The Cloudflare deployment foundation adds:
 
-The admin dashboard can edit service and add-on price types and ranges, availability, applicable add-ons, final booking prices, deposits, policies, and promotion dates. Historical bookings store their own original estimate and pricing snapshot.
+- Cloudflare Pages Functions for one-time administrator setup and server-side authentication.
+- D1 as the production source of truth for services, prices, bookings, availability, policies, settings, sessions, and audit history.
+- Separate R2 bindings for the public service gallery and private customer uploads.
+- Owner-approved hours (Tuesday–Friday 6–9 p.m.; Saturday 8 a.m.–6 p.m.), a two-appointment daily limit, and Sunday requests with a $50 surcharge.
+- A consent-backed SMS outbox ready for a future approved texting provider; no texting provider is active yet.
+- Approved 90-day private-photo retention with authenticated cleanup.
+- Turnstile verification, login throttling, temporary lockout, secure cookies, session expiration, logout revocation, and PIN changes.
+- Atomic first-approved-wins booking approval with full-duration and buffer overlap protection.
+- Immutable original booking price snapshots and permanent status history.
 
-## Draft safeguards
+Production configuration disables the browser-storage fallback. Local storage remains available only when an owner intentionally runs the application in the development environment. No untrusted browser data is automatically migrated to D1.
 
-- Payment actions are simulations only; the app never collects card details or processes real payments.
-- The Grand Opening Special is disabled by default and expires automatically after its configured end date.
-- The public banner and page title identify the site as a draft.
-- Data is stored locally in the current browser; use the admin backup export before clearing browser data.
+## Safeguards
 
-## Tests
+- No Stripe SDK, checkout route, payment secret, or automatic payment provider is present. Manual off-site deposit instructions never mark a payment received without Kia’s verification.
+- The Grand Opening Special remains off until Brookia approves activation.
+- No administrator email, setup PIN, session secret, or Turnstile secret is committed.
+- Historical bookings and price snapshots cannot be deleted by ordinary application operations.
+- Private customer images never receive permanent public URLs.
 
-Run `node pricing.test.js` to check fixed, range, starting, consultation, deposit-tier, add-on, and promotion calculations.
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Cloudflare owner setup](docs/CLOUDFLARE_SETUP.md)
+- [Security, recovery, communications, and backups](docs/SECURITY_AND_OPERATIONS.md)
+
+## Verification
+
+```text
+npm test
+npm run check
+npm run verify:seed
+git diff --check
+```
+
+This branch is a secure deployment foundation, not authorization to launch publicly. Cloudflare resources, secrets, owner review, and cross-device preview testing are still required.
