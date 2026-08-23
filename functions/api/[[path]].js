@@ -103,20 +103,20 @@ async function emailFingerprint(email, env) {
   return sha256(`${env.SESSION_SECRET || "development-only-fingerprint"}:${normalizeEmail(email)}`);
 }
 
-async function verifyTurnstile(request, env, token) {
+async function verifyTurnstile(request, env, token, expectedAction) {
   if (env.APP_ENVIRONMENT === "development" && env.TURNSTILE_BYPASS_FOR_TESTS === "true" && token === "development-test-token") {
     return true;
   }
-  if (!env.TURNSTILE_SECRET_KEY || typeof token !== "string" || !token) return false;
+  if (!env.TURNSTILE_SECRET_KEY || typeof token !== "string" || !token || token.length > 2048) return false;
   const body = new FormData();
   body.set("secret", env.TURNSTILE_SECRET_KEY);
   body.set("response", token);
   const remoteIp = request.headers.get("CF-Connecting-IP");
   if (remoteIp) body.set("remoteip", remoteIp);
-  const verification = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body });
+  const verification = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body, signal: AbortSignal.timeout(10000) });
   if (!verification.ok) return false;
   const result = await verification.json();
-  return result.success === true;
+  return result.success === true && result.action === expectedAction && result.hostname === new URL(request.url).hostname;
 }
 
 async function audit(env, request, action, adminId = null, entityType = null, entityId = null, details = {}) {
@@ -216,7 +216,7 @@ async function handleLogin(request, env) {
   const body = await readJson(request);
   const email = normalizeEmail(body.email);
   const pin = body.pin;
-  const turnstileOk = await verifyTurnstile(request, env, body.turnstileToken);
+  const turnstileOk = await verifyTurnstile(request, env, body.turnstileToken, "admin_login");
   const emailHash = await emailFingerprint(email, env);
   const ipHash = await clientFingerprint(request, env);
   const recent = await env.DB.prepare(
@@ -358,7 +358,7 @@ function requiredString(value, label, maxLength = 500) {
 async function handleCreateBooking(request, env) {
   requireBindings(env, ["DB"]);
   const body = await readJson(request);
-  if (body.turnstileToken && !await verifyTurnstile(request, env, body.turnstileToken)) throw new RequestError("Request verification failed.", 403);
+  if (body.turnstileToken && !await verifyTurnstile(request, env, body.turnstileToken, "booking_request")) throw new RequestError("Request verification failed.", 403);
   const serviceId = requiredString(body.serviceId, "Service", 100);
   const service = await env.DB.prepare(`SELECT s.id, s.name, s.price_type, s.is_active, p.minimum_price_cents, p.maximum_price_cents,
       d.duration_minutes FROM services s JOIN service_prices p ON p.service_id = s.id AND p.effective_to IS NULL
@@ -878,7 +878,7 @@ async function handleGalleryDelete(request, env, imageId) {
 async function handlePrivateUpload(request, env) {
   requireBindings(env, ["DB", "PRIVATE_UPLOADS"]);
   const form = await request.formData();
-  if (!await verifyTurnstile(request, env, String(form.get("turnstileToken") || ""))) throw new RequestError("Request verification failed.", 403);
+  if (!await verifyTurnstile(request, env, String(form.get("turnstileToken") || ""), "booking_request")) throw new RequestError("Request verification failed.", 403);
   const requested = [
     { field: "currentLook", uploadType: "current_look" },
     { field: "inspiration", uploadType: "inspiration" }

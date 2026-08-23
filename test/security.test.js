@@ -70,5 +70,14 @@ test("repository does not contain the private setup credential", () => {
 
 test("worker implements Turnstile, rate limits, lockout, session revocation, and atomic one-time setup diagnostics", () => {
   const source = fs.readFileSync("functions/api/[[path]].js", "utf8");
-  for (const marker of ["siteverify", "AUTH_FAILURE_LIMIT", "locked_until", "admin_sessions", "revoked_at", "setup_complete", "initial_admin_setup_complete", "genericLoginError", "setup_hash_failed", "setup_write_failed", "'admin_setup'"]) assert.equal(source.includes(marker), true, `missing ${marker}`);
+  for (const marker of ["siteverify", "AUTH_FAILURE_LIMIT", "locked_until", "admin_sessions", "revoked_at", "setup_complete", "initial_admin_setup_complete", "genericLoginError", "setup_hash_failed", "setup_write_failed", "'admin_setup'", '"admin_login"', '"booking_request"', "result.hostname"]) assert.equal(source.includes(marker), true, `missing ${marker}`);
+});
+
+test("booking and admin forms retain separate Turnstile widget identifiers", () => {
+  const source = fs.readFileSync("index.html", "utf8");
+  for (const marker of ["booking-turnstile", "bookingTurnstileWidgetId", "adminTurnstileWidgetId", "getResponse?.(bookingTurnstileWidgetId)", "getResponse?.(adminTurnstileWidgetId)"]) {
+    assert.equal(source.includes(marker), true, `missing ${marker}`);
+  }
+  assert.equal(source.includes("getResponse?.()"), false);
+  assert.equal(source.includes("reset?.()"), false);
 });
