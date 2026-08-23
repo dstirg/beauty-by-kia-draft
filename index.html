@@ -528,6 +528,18 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
   .progress-steps li { font-size: 0; gap: 4px; }
   .progress-steps li span { font-size: .8rem; }
   .booking-panel { padding: 20px; }
+  .booking-shell { padding-bottom: 120px; }
+  .booking-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+    margin: 28px -20px -20px;
+    padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, .97);
+    box-shadow: 0 -12px 28px rgba(35, 24, 27, .12);
+  }
+  .booking-actions .button { min-height: 48px; }
+  .booking-actions .button-primary { flex: 1; }
   .stat-grid { grid-template-columns: 1fr; }
   .admin-sidebar-nav { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .inline-form { grid-template-columns: 1fr; }
@@ -1495,7 +1507,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const variable = service?.priceType !== "fixed" || selected.some(item => item.priceType !== "fixed");
     const displayedPrice = PRICING.formatPrice(service, value => money.format(value));
     const confirmationNotice = service?.priceType === "range" ? PRICING.RANGE_NOTICE : service?.priceType === "starting" ? "Final price confirmation may be required." : service?.notice || "";
-    return `<div class="booking-panel-header"><div><span class="eyebrow">Step 4</span><h2>Review and submit</h2><p>Check the appointment request and accept the policies.</p></div></div><div class="notice notice-warning"><strong>No online card charge:</strong> After Kia approves the request, she may request the listed deposit through Cash App or Zelle. The appointment remains awaiting deposit until Kia verifies receipt. Stripe is not active.</div><div class="summary-grid"><div class="summary-card"><h3>Appointment Request</h3><div class="line-item"><span>Client</span><strong>${escapeHtml(booking.client.name)}</strong></div><div class="line-item"><span>Selected service</span><strong>${escapeHtml(service?.name || "")}</strong></div><div class="line-item"><span>Displayed service price</span><strong>${displayedPrice}</strong></div><div class="line-item"><span>Requested date</span><strong>${booking.date ? longDateFormatter.format(new Date(`${booking.date}T12:00:00`)) : ""}</strong></div><div class="line-item"><span>Requested time</span><strong>${formatTime(booking.time)}</strong></div>${confirmationNotice ? `<div class="notice notice-info" style="margin-top:16px">${escapeHtml(confirmationNotice)}</div>` : ""}</div><div class="summary-card"><h3>Price Estimate</h3><div class="line-item"><span>Estimated base price</span><strong>${money.format(prices.base)}</strong></div>${selected.map(addOn => `<div class="line-item"><span>${escapeHtml(addOn.name)} <small>(${PRICING.formatPrice(addOn,v=>money.format(v))})</small></span><strong>${money.format(addOn.minPrice)}</strong></div>`).join("")}<div class="line-item"><span>Estimated add-on total</span><strong>${money.format(prices.addOns)}</strong></div><div class="line-item total"><span>Estimated Service Total</span><strong>${money.format(prices.total)}</strong></div><div class="line-item deposit"><span>Estimated deposit</span><strong>${prices.consultation ? "Calculated after Brookia approves the estimate" : money.format(prices.deposit)}</strong></div><div class="line-item"><span>Estimated remaining balance</span><strong>${prices.consultation ? "Pending review" : money.format(prices.balance)}</strong></div></div></div><div class="summary-card" style="margin-top:22px"><h3>Policies</h3><div class="policy-scroll">${renderPolicySummary()}</div><label class="checkbox-label" style="margin-top:16px"><input type="checkbox" id="policy-agreement" ${booking.acceptedPolicies ? "checked" : ""} /><span>I reviewed and accept these policies (version ${escapeHtml(state.policies.version)}).</span></label><p class="helper-text" id="policy-acceptance-status">Policies accepted: ${booking.acceptedPolicies ? "Yes" : "No"}</p></div><div class="summary-card" style="margin-top:22px"><h3>Security verification</h3><p class="helper-text">Complete this check before sending the appointment request.</p><div id="booking-turnstile" style="margin-top:14px"></div></div><div class="booking-actions"><button class="button button-secondary" id="booking-back-review">Back</button><button class="button button-primary" id="complete-booking" ${booking.acceptedPolicies ? "" : "disabled"}>Submit Request — Pending Brookia Review</button></div>`;
+    return `<div class="booking-panel-header"><div><span class="eyebrow">Step 4</span><h2>Review and submit</h2><p>Check the appointment request and accept the policies.</p></div></div><div class="notice notice-warning"><strong>Online deposit is not active yet:</strong> When Stripe is connected, the normal deposit tier shown below will be charged from this displayed estimate. Paying the deposit will not confirm the appointment. Kia must approve the appointment and the final service total. Stripe and SMS remain disabled until their accounts are connected.</div><div class="summary-grid"><div class="summary-card"><h3>Appointment Request</h3><div class="line-item"><span>Client</span><strong>${escapeHtml(booking.client.name)}</strong></div><div class="line-item"><span>Selected service</span><strong>${escapeHtml(service?.name || "")}</strong></div><div class="line-item"><span>Displayed service price</span><strong>${displayedPrice}</strong></div><div class="line-item"><span>Requested date</span><strong>${booking.date ? longDateFormatter.format(new Date(`${booking.date}T12:00:00`)) : ""}</strong></div><div class="line-item"><span>Requested time</span><strong>${formatTime(booking.time)}</strong></div>${confirmationNotice ? `<div class="notice notice-info" style="margin-top:16px">${escapeHtml(confirmationNotice)}</div>` : ""}</div><div class="summary-card"><h3>Price Estimate</h3><div class="line-item"><span>Estimated base price</span><strong>${money.format(prices.base)}</strong></div>${selected.map(addOn => `<div class="line-item"><span>${escapeHtml(addOn.name)} <small>(${PRICING.formatPrice(addOn,v=>money.format(v))})</small></span><strong>${money.format(addOn.minPrice)}</strong></div>`).join("")}<div class="line-item"><span>Estimated add-on total</span><strong>${money.format(prices.addOns)}</strong></div><div class="line-item total"><span>Displayed estimated total</span><strong>${money.format(prices.total)}</strong></div><div class="line-item deposit"><span>Normal deposit tier</span><strong>${prices.consultation ? "Calculated after Kia approves the estimate" : money.format(prices.deposit)}</strong></div><div class="line-item"><span>Estimated remaining balance</span><strong>${prices.consultation ? "Pending review" : money.format(prices.balance)}</strong></div><p class="helper-text" style="margin-top:14px">The deposit is based on this displayed estimate. Kia must approve the final service total before the appointment is official.</p></div></div><div class="summary-card" style="margin-top:22px"><h3>Policies</h3><div class="policy-scroll">${renderPolicySummary()}</div><label class="checkbox-label" style="margin-top:16px"><input type="checkbox" id="policy-agreement" ${booking.acceptedPolicies ? "checked" : ""} /><span>I reviewed and accept these policies (version ${escapeHtml(state.policies.version)}).</span></label><p class="helper-text" id="policy-acceptance-status">Policies accepted: ${booking.acceptedPolicies ? "Yes" : "No"}</p></div><div class="summary-card" style="margin-top:22px"><h3>Security verification</h3><p class="helper-text">Complete this check before sending the appointment request.</p><div id="booking-turnstile" style="margin-top:14px"></div></div><div class="booking-actions"><button class="button button-secondary" id="booking-back-review">Back</button><button class="button button-primary" id="complete-booking" ${booking.acceptedPolicies ? "" : "disabled"}>Submit Request — Pending Kia Review</button></div>`;
   }
 
   function bindBookingStepEvents() {
@@ -1705,24 +1717,48 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     window.location.hash = "confirmation";
   }
 
+  function customerBookingStatus(record) {
+    if (record.status === "pending_review" && record.depositStatus === "deposit_paid") return "Deposit paid — awaiting Kia’s approval.";
+    const labels = {
+      pending: "Request received — awaiting Kia’s review.",
+      pending_review: "Request received — awaiting Kia’s review.",
+      awaiting_deposit: "Kia approved the request — deposit is awaiting payment.",
+      confirmed: "Appointment confirmed.",
+      declined: "Request declined.",
+      time_unavailable: "Requested time is no longer available.",
+      cancelled_by_client: "Appointment cancelled by client.",
+      cancelled_by_brookia: "Appointment cancelled by Kia.",
+      reschedule_requested: "Reschedule requested."
+    };
+    return labels[record.status] || String(record.status || "Pending review").replaceAll("_", " ");
+  }
+
   function renderConfirmation(record) {
-    const isConsultation = ["pending", "pending_review"].includes(record.status);
-    const addressText = state.business.address && state.business.addressVisibility === "after" && !isConsultation ? `<div class="line-item"><span>Location</span><strong>${escapeHtml(state.business.address)}</strong></div>` : "";
+    const pendingApproval = ["pending", "pending_review"].includes(record.status);
+    const statusText = customerBookingStatus(record);
+    const depositPaidPending = record.status === "pending_review" && record.depositStatus === "deposit_paid";
+    const addressText = state.business.address && state.business.addressVisibility === "after" && record.status === "confirmed" ? `<div class="line-item"><span>Location</span><strong>${escapeHtml(state.business.address)}</strong></div>` : "";
     document.getElementById("confirmation-content").innerHTML = `
       <div class="confirmation-card">
         <div class="confirmation-logo-wrap"><img class="confirmation-logo" src="${LOGO_PATH}" alt="${escapeHtml(state.business.name)} logo" /></div>
         <div class="confirmation-icon">✓</div>
-        <span class="eyebrow">${escapeHtml(record.reference)}</span>
-        <h1>${isConsultation ? "Request submitted" : "You’re booked"}</h1>
-        <p>${isConsultation ? "Kia will review your request before approving the final service price. If a current-hair photo or another view is needed, she will contact you. Your appointment is not confirmed until Kia approves it." : "Your appointment and prototype deposit have been recorded."}</p>
+        <span class="eyebrow">Booking request received</span>
+        <h1>${record.status === "confirmed" ? "Appointment confirmed" : "Request submitted"}</h1>
+        <p>${depositPaidPending ? "Your deposit was recorded, but your appointment is not official yet. Kia will review the requested time and approve the final service total." : pendingApproval ? "Kia will review your requested time and final service total. Your appointment is not confirmed until Kia approves it." : escapeHtml(statusText)}</p>
+        <div class="notice ${depositPaidPending ? "notice-success" : "notice-info"}" style="margin:20px 0"><strong>${escapeHtml(statusText)}</strong></div>
         <div class="confirmation-details summary-card">
+          <div class="line-item"><span>Reference number</span><strong>${escapeHtml(record.reference)}</strong></div>
+          <div class="line-item"><span>Current status</span><strong>${escapeHtml(statusText)}</strong></div>
           <div class="line-item"><span>Client</span><strong>${escapeHtml(record.client.name)}</strong></div>
           <div class="line-item"><span>Service</span><strong>${escapeHtml(record.serviceName)}</strong></div>
           <div class="line-item"><span>Date</span><strong>${longDateFormatter.format(new Date(`${record.date}T12:00:00`))}</strong></div>
           <div class="line-item"><span>Time</span><strong>${formatTime(record.time)}</strong></div>
-          ${!isConsultation ? `<div class="line-item"><span>Total</span><strong>${money.format(record.total)}</strong></div><div class="line-item deposit"><span>Deposit</span><strong>${money.format(record.deposit)}</strong></div><div class="line-item"><span>Remaining balance</span><strong>${money.format(record.balance)}</strong></div>` : ""}
+          <div class="line-item"><span>Displayed estimated total</span><strong>${money.format(record.total || 0)}</strong></div>
+          <div class="line-item deposit"><span>Normal deposit tier</span><strong>${money.format(record.deposit || 0)}</strong></div>
+          <div class="line-item"><span>Estimated remaining balance</span><strong>${money.format(record.balance || 0)}</strong></div>
           ${addressText}
         </div>
+        <p class="helper-text" style="margin-top:16px">The deposit is based on the displayed estimate. Kia must approve the final service total and appointment before it is official.</p>
         <div class="hero-actions" style="justify-content:center">
           <button class="button button-primary" onclick="window.print()">Print Confirmation</button>
           <button class="button button-secondary" id="copy-confirmation">Copy Details</button>
@@ -1733,7 +1769,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
   }
 
   async function copyBookingDetails(record) {
-    const text = `${state.business.name}\nConfirmation: ${record.reference}\nClient: ${record.client.name}\nService: ${record.serviceName}\nDate: ${longDateFormatter.format(new Date(`${record.date}T12:00:00`))}\nTime: ${formatTime(record.time)}${["pending", "pending_review"].includes(record.status) ? "\nStatus: Pending Brookia review" : `\nTotal: ${money.format(record.total)}\nDeposit: ${money.format(record.deposit)}\nBalance: ${money.format(record.balance)}`}`;
+    const text = `${state.business.name}\nReference number: ${record.reference}\nCurrent status: ${customerBookingStatus(record)}\nClient: ${record.client.name}\nService: ${record.serviceName}\nDate: ${longDateFormatter.format(new Date(`${record.date}T12:00:00`))}\nTime: ${formatTime(record.time)}\nDisplayed estimated total: ${money.format(record.total || 0)}\nNormal deposit tier: ${money.format(record.deposit || 0)}\nFinal service total requires Kia’s approval.`;
     try {
       await navigator.clipboard.writeText(text);
       showToast("Booking details copied.");

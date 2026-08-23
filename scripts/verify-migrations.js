@@ -15,7 +15,8 @@ const required = [
   "appointment_buffers", "bookings", "booking_services", "booking_add_ons",
   "booking_price_snapshots", "booking_status_history", "policy_versions", "policy_acceptances",
   "admin_accounts", "admin_sessions", "login_attempts", "audit_logs", "gallery_images",
-  "private_upload_metadata", "application_settings", "communication_outbox", "payment_status_history"
+  "private_upload_metadata", "application_settings", "communication_outbox", "payment_status_history",
+  "payment_transactions", "payment_refunds", "payment_webhook_events"
 ];
 const tables = new Set(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name));
 const missing = required.filter(name => !tables.has(name));
@@ -30,6 +31,14 @@ if (!privateUploadColumns.has("claim_token_hash")) throw new Error("Missing priv
 const bookingColumns = new Set(database.prepare("PRAGMA table_info(bookings)").all().map(row => row.name));
 for (const column of ["sms_consent_at", "deposit_method", "deposit_requested_at", "deposit_received_at"]) {
   if (!bookingColumns.has(column)) throw new Error(`Missing booking operations column: ${column}`);
+}
+const paymentColumns = new Set(database.prepare("PRAGMA table_info(payment_transactions)").all().map(row => row.name));
+for (const column of ["provider_payment_intent_id", "provider_charge_id", "receipt_url", "idempotency_key_hash"]) {
+  if (!paymentColumns.has(column)) throw new Error(`Missing Stripe payment foundation column: ${column}`);
+}
+const refundColumns = new Set(database.prepare("PRAGMA table_info(payment_refunds)").all().map(row => row.name));
+for (const column of ["provider_refund_id", "amount_cents", "status"]) {
+  if (!refundColumns.has(column)) throw new Error(`Missing refund foundation column: ${column}`);
 }
 
 console.log(`Verified D1-compatible migration with ${required.length} required tables.`);
