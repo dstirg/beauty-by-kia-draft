@@ -1,6 +1,6 @@
 # Beauty by Kia — Draft Review
 
-This repository contains the review-only Beauty by Kia booking portal. The application remains visibly labeled **Draft Review — Not Yet Live** and real payment processing is disabled.
+This repository contains the review-only Beauty by Kia booking portal. The application remains visibly labeled **Draft Review — Not Yet Live**. Stripe and automatic payment processing remain disabled; Kia may request and manually verify off-site Cash App or Zelle deposits after approving a booking request.
 
 ## Cloudflare foundation
 
@@ -9,6 +9,9 @@ The approved 30-service catalog, 10 add-ons, prices, deposit tiers, policies, an
 - Cloudflare Pages Functions for one-time administrator setup and server-side authentication.
 - D1 as the production source of truth for services, prices, bookings, availability, policies, settings, sessions, and audit history.
 - Separate R2 bindings for the public service gallery and private customer uploads.
+- Owner-approved hours (Tuesday–Friday 6–9 p.m.; Saturday 8 a.m.–6 p.m.), a two-appointment daily limit, and Sunday requests with a $50 surcharge.
+- A consent-backed SMS outbox ready for a future approved texting provider; no texting provider is active yet.
+- Approved 90-day private-photo retention with authenticated cleanup.
 - Turnstile verification, login throttling, temporary lockout, secure cookies, session expiration, logout revocation, and PIN changes.
 - Atomic first-approved-wins booking approval with full-duration and buffer overlap protection.
 - Immutable original booking price snapshots and permanent status history.
@@ -17,7 +20,7 @@ Production configuration disables the browser-storage fallback. Local storage re
 
 ## Safeguards
 
-- No Stripe SDK, checkout route, payment secret, or paid provider is present.
+- No Stripe SDK, checkout route, payment secret, or automatic payment provider is present. Manual off-site deposit instructions never mark a payment received without Kia’s verification.
 - The Grand Opening Special remains off until Brookia approves activation.
 - No administrator email, setup PIN, session secret, or Turnstile secret is committed.
 - Historical bookings and price snapshots cannot be deleted by ordinary application operations.

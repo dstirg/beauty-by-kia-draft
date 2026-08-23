@@ -893,21 +893,30 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       prices: { "svc-silk-press": 65, "svc-quick-weave-style": 65, "svc-basic-glam": 55, "svc-wig-install": 85, "svc-promo-mani-pedi": 70 }
     },
     depositTiers: { under100: 25, under180: 40, atLeast180: 50 },
+    operations: {
+      cashAppHandle: "",
+      zelleContact: "",
+      depositInstructions: "Kia will send approved Cash App or Zelle instructions after reviewing the appointment request. A payment is not recorded until Kia verifies it.",
+      sundaySurcharge: 50,
+      photoRetentionDays: 90,
+      smsProvider: "none",
+      smsLiveEnabled: false
+    },
     availability: {
       days: {
         0: null,
         1: null,
-        2: { start: "17:30", end: "21:00" },
-        3: { start: "17:30", end: "21:00" },
-        4: { start: "17:30", end: "21:00" },
-        5: { start: "17:00", end: "21:00" },
+        2: { start: "18:00", end: "21:00" },
+        3: { start: "18:00", end: "21:00" },
+        4: { start: "18:00", end: "21:00" },
+        5: { start: "18:00", end: "21:00" },
         6: { start: "08:00", end: "18:00" }
       },
       bufferMinutes: 30,
       beforeMinutes: 0,
       minNoticeHours: 24,
       bookingWindowDays: 60,
-      maximumAppointmentsPerDay: 6,
+      maximumAppointmentsPerDay: 2,
       blockedDates: [],
       vacationDates: [],
       calendarBlocks: []
@@ -956,6 +965,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       inspirationFile: null,
       date: "",
       time: "",
+      smsConsent: false,
       acceptedPolicies: false
     };
   }
@@ -981,6 +991,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       ...base,
       ...saved,
       business: { ...base.business, ...(saved.business || {}) },
+      operations: { ...base.operations, ...(saved.operations || {}) },
       availability: {
         ...base.availability,
         ...(saved.availability || {}),
@@ -1102,6 +1113,16 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     if (payload.settings) {
       const keyMap = { name: "business_name", tagline: "business_tagline", phone: "business_phone", email: "business_email", city: "business_city", instagram: "business_instagram", address: "business_address", addressVisibility: "business_addressVisibility" };
       for (const [property, key] of Object.entries(keyMap)) if (typeof payload.settings[key] === "string") state.business[property] = payload.settings[key];
+      state.operations = {
+        ...state.operations,
+        cashAppHandle: payload.settings.cash_app_handle || "",
+        zelleContact: payload.settings.zelle_contact || "",
+        depositInstructions: payload.settings.deposit_instructions || state.operations.depositInstructions,
+        sundaySurcharge: Number(payload.settings.sunday_surcharge_cents || 5000) / 100,
+        photoRetentionDays: Number(payload.settings.private_upload_retention_days || 90),
+        smsProvider: payload.settings.sms_provider || "none",
+        smsLiveEnabled: payload.settings.sms_live_enabled === "true"
+      };
     }
     if (Array.isArray(payload.bookings)) {
       const privateUploads = Array.isArray(payload.privateUploads) ? payload.privateUploads : [];
@@ -1111,7 +1132,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         reference: item.reference,
         date: (item.appointment_start_at || item.requested_start_at || "").slice(0, 10),
         time: new Date(item.appointment_start_at || item.requested_start_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-        client: { name: item.client_name, email: item.client_email, phone: item.client_phone },
+        client: { name: item.client_name, email: item.client_email, phone: item.client_phone, preferredContact: item.preferred_contact || "email", smsConsent: Boolean(item.sms_consent_at) },
         serviceName: item.service_name || "Service",
         currentHairPhoto: privateUploads.find(upload => upload.booking_id === item.id && upload.upload_type === "current_look")?.url || "",
         inspirationPhoto: privateUploads.find(upload => upload.booking_id === item.id && upload.upload_type === "inspiration")?.url || "",
@@ -1153,7 +1174,8 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           promotion: state.promotion,
           depositTiers: state.depositTiers,
           availability: state.availability,
-          policies: state.policies
+          policies: state.policies,
+          operations: state.operations
         })
       });
       applyServerState(payload);
@@ -1338,6 +1360,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           <label>Phone number<input name="phone" required value="${escapeHtml(booking.client.phone)}" autocomplete="tel" /></label>
           <label>Email address<input type="email" name="email" required value="${escapeHtml(booking.client.email)}" autocomplete="email" /></label>
           <label>Preferred contact<select name="preferredContact"><option ${booking.client.preferredContact === "Text" ? "selected" : ""}>Text</option><option ${booking.client.preferredContact === "Email" ? "selected" : ""}>Email</option><option ${booking.client.preferredContact === "Call" ? "selected" : ""}>Call</option></select></label>
+          <label class="checkbox-label full-span"><input type="checkbox" name="smsConsent" ${booking.smsConsent ? "checked" : ""} /><span>I agree to receive automated transactional text messages from Beauty by Kia about this booking. Message and data rates may apply. Consent is not a condition of purchase. Reply STOP to opt out.</span></label>
           <label>Current hair length<select name="hairLength" required><option value="">Select one</option>${["Short","Ear/Chin","Shoulder","Past Shoulder","Mid-Back or Longer"].map(option => `<option ${booking.client.hairLength === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>
           <label>Hair density<select name="hairDensity" required><option value="">Select one</option>${["Fine/Low Density","Average","Thick/High Density","Not Sure"].map(option => `<option ${booking.client.hairDensity === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>
           <label>Hair condition<select name="hairCondition" required><option value="">Select one</option>${["Natural","Relaxed","Locs","Previously Braided","Color-Treated","Other"].map(option => `<option ${booking.client.hairCondition === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>
@@ -1429,6 +1452,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const selectedTimes = booking.date ? getAvailableTimes(booking.date) : [];
     return `
       <div class="booking-panel-header"><div><span class="eyebrow">Step 3</span><h2>Select an appointment</h2><p>Only available times that fit the selected service are shown.</p></div></div>
+      <div class="notice notice-info"><strong>Sunday requests:</strong> Sundays are available by request only and add ${money.format(state.operations.sundaySurcharge)}. Contact Kia at <a href="tel:+15015220061">${escapeHtml(state.business.phone)}</a> to discuss a Sunday appointment.</div>
       ${dates.length ? `<div class="date-grid">${dates.map(date => { const iso = toLocalIsoDate(date); return `<button class="date-button ${booking.date === iso ? "selected" : ""}" data-date="${iso}">${date.toLocaleDateString("en-US", { weekday: "short" })}<small>${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</small></button>`; }).join("")}</div>` : '<div class="empty-state">No appointment dates are currently available. Kia can update availability in the admin dashboard.</div>'}
       ${booking.date ? `<fieldset class="fieldset"><legend>Available times for ${longDateFormatter.format(new Date(`${booking.date}T12:00:00`))}</legend><div class="time-grid">${selectedTimes.map(time => `<button class="time-button ${booking.time === time ? "selected" : ""}" data-time="${time}">${formatTime(time)}</button>`).join("")}</div></fieldset>` : ""}
       <div class="booking-actions"><button class="button button-secondary" id="booking-back-time">Back</button><button class="button button-primary" id="booking-next-time" ${booking.date && booking.time ? "" : "disabled"}>Review Booking</button></div>`;
@@ -1443,7 +1467,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const variable = service?.priceType !== "fixed" || selected.some(item => item.priceType !== "fixed");
     const displayedPrice = PRICING.formatPrice(service, value => money.format(value));
     const confirmationNotice = service?.priceType === "range" ? PRICING.RANGE_NOTICE : service?.priceType === "starting" ? "Final price confirmation may be required." : service?.notice || "";
-    return `<div class="booking-panel-header"><div><span class="eyebrow">Step 4</span><h2>Review and submit</h2><p>Check the appointment request and accept the policies.</p></div></div><div class="notice notice-warning"><strong>Payments disabled:</strong> This draft calculates a deposit estimate only. No real money will be charged, and the appointment is not confirmed until Brookia approves it.</div><div class="summary-grid"><div class="summary-card"><h3>Appointment Request</h3><div class="line-item"><span>Client</span><strong>${escapeHtml(booking.client.name)}</strong></div><div class="line-item"><span>Selected service</span><strong>${escapeHtml(service?.name || "")}</strong></div><div class="line-item"><span>Displayed service price</span><strong>${displayedPrice}</strong></div><div class="line-item"><span>Requested date</span><strong>${booking.date ? longDateFormatter.format(new Date(`${booking.date}T12:00:00`)) : ""}</strong></div><div class="line-item"><span>Requested time</span><strong>${formatTime(booking.time)}</strong></div>${confirmationNotice ? `<div class="notice notice-info" style="margin-top:16px">${escapeHtml(confirmationNotice)}</div>` : ""}</div><div class="summary-card"><h3>Price Estimate</h3><div class="line-item"><span>Estimated base price</span><strong>${money.format(prices.base)}</strong></div>${selected.map(addOn => `<div class="line-item"><span>${escapeHtml(addOn.name)} <small>(${PRICING.formatPrice(addOn,v=>money.format(v))})</small></span><strong>${money.format(addOn.minPrice)}</strong></div>`).join("")}<div class="line-item"><span>Estimated add-on total</span><strong>${money.format(prices.addOns)}</strong></div><div class="line-item total"><span>Estimated Service Total</span><strong>${money.format(prices.total)}</strong></div><div class="line-item deposit"><span>Estimated deposit</span><strong>${prices.consultation ? "Calculated after Brookia approves the estimate" : money.format(prices.deposit)}</strong></div><div class="line-item"><span>Estimated remaining balance</span><strong>${prices.consultation ? "Pending review" : money.format(prices.balance)}</strong></div></div></div><div class="summary-card" style="margin-top:22px"><h3>Policies</h3><div class="policy-scroll">${renderPolicySummary()}</div><label class="checkbox-label" style="margin-top:16px"><input type="checkbox" id="policy-agreement" ${booking.acceptedPolicies ? "checked" : ""} /><span>I reviewed and accept these policies (version ${escapeHtml(state.policies.version)}).</span></label><p class="helper-text">Policies accepted: ${booking.acceptedPolicies ? "Yes" : "No"}</p></div><div class="booking-actions"><button class="button button-secondary" id="booking-back-review">Back</button><button class="button button-primary" id="complete-booking" ${booking.acceptedPolicies ? "" : "disabled"}>Submit Request — Pending Brookia Review</button></div>`;
+    return `<div class="booking-panel-header"><div><span class="eyebrow">Step 4</span><h2>Review and submit</h2><p>Check the appointment request and accept the policies.</p></div></div><div class="notice notice-warning"><strong>No online card charge:</strong> After Kia approves the request, she may request the listed deposit through Cash App or Zelle. The appointment remains awaiting deposit until Kia verifies receipt. Stripe is not active.</div><div class="summary-grid"><div class="summary-card"><h3>Appointment Request</h3><div class="line-item"><span>Client</span><strong>${escapeHtml(booking.client.name)}</strong></div><div class="line-item"><span>Selected service</span><strong>${escapeHtml(service?.name || "")}</strong></div><div class="line-item"><span>Displayed service price</span><strong>${displayedPrice}</strong></div><div class="line-item"><span>Requested date</span><strong>${booking.date ? longDateFormatter.format(new Date(`${booking.date}T12:00:00`)) : ""}</strong></div><div class="line-item"><span>Requested time</span><strong>${formatTime(booking.time)}</strong></div>${confirmationNotice ? `<div class="notice notice-info" style="margin-top:16px">${escapeHtml(confirmationNotice)}</div>` : ""}</div><div class="summary-card"><h3>Price Estimate</h3><div class="line-item"><span>Estimated base price</span><strong>${money.format(prices.base)}</strong></div>${selected.map(addOn => `<div class="line-item"><span>${escapeHtml(addOn.name)} <small>(${PRICING.formatPrice(addOn,v=>money.format(v))})</small></span><strong>${money.format(addOn.minPrice)}</strong></div>`).join("")}<div class="line-item"><span>Estimated add-on total</span><strong>${money.format(prices.addOns)}</strong></div><div class="line-item total"><span>Estimated Service Total</span><strong>${money.format(prices.total)}</strong></div><div class="line-item deposit"><span>Estimated deposit</span><strong>${prices.consultation ? "Calculated after Brookia approves the estimate" : money.format(prices.deposit)}</strong></div><div class="line-item"><span>Estimated remaining balance</span><strong>${prices.consultation ? "Pending review" : money.format(prices.balance)}</strong></div></div></div><div class="summary-card" style="margin-top:22px"><h3>Policies</h3><div class="policy-scroll">${renderPolicySummary()}</div><label class="checkbox-label" style="margin-top:16px"><input type="checkbox" id="policy-agreement" ${booking.acceptedPolicies ? "checked" : ""} /><span>I reviewed and accept these policies (version ${escapeHtml(state.policies.version)}).</span></label><p class="helper-text">Policies accepted: ${booking.acceptedPolicies ? "Yes" : "No"}</p></div><div class="booking-actions"><button class="button button-secondary" id="booking-back-review">Back</button><button class="button button-primary" id="complete-booking" ${booking.acceptedPolicies ? "" : "disabled"}>Submit Request — Pending Brookia Review</button></div>`;
   }
 
   function bindBookingStepEvents() {
@@ -1464,6 +1488,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     document.getElementById("booking-details-form")?.addEventListener("submit", event => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
+      booking.smsConsent = form.has("smsConsent");
       booking.client = {
         name: form.get("name").trim(),
         phone: form.get("phone").trim(),
@@ -1477,6 +1502,10 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         nailLength: form.get("nailLength") || "", nailShape: form.get("nailShape") || "", preferredColors: form.get("preferredColors") || "", neededBy: form.get("neededBy") || "", designNotes: form.get("designNotes") || "", weddingDate: form.get("weddingDate") || "", gettingReadyLocation: form.get("gettingReadyLocation") || "", ceremonyTime: form.get("ceremonyTime") || "", partySize: form.get("partySize") || "", trialRequested: form.get("trialRequested") || "", weddingNotes: form.get("weddingNotes") || ""
       };
       booking.addOnIds = form.getAll("addOns");
+      if (booking.client.preferredContact === "Text" && !booking.smsConsent) {
+        showToast("Please agree to transactional text messages or choose Email or Call as the preferred contact.");
+        return;
+      }
       const service = getService(booking.serviceId);
       if (service?.requiredUploads?.some(type => type === "current" ? !booking.currentHairPhoto : !booking.inspirationPhoto)) {
         showToast("Please add all required current-hair and inspiration photos.");
@@ -1579,6 +1608,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
             addOnIds: booking.addOnIds,
             client: booking.client,
             requestedStartAt: new Date(`${booking.date}T${booking.time}:00`).toISOString(),
+            smsConsent: booking.smsConsent,
             acceptedPolicies: true,
             privateUploadIds,
             privateUploadClaimToken,
@@ -1783,7 +1813,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         <td><strong>${escapeHtml(record.serviceName)}</strong><br /><small>${record.addOns?.map(addOn => escapeHtml(addOn.name)).join(", ") || "No add-ons"}</small></td>
         <td>${record.status === "pending_review" ? "Price pending approval" : `<strong>${money.format(record.total)}</strong><br /><small>Deposit ${money.format(record.deposit)} · Balance ${money.format(record.balance)}</small>`}</td>
         <td><span class="status-badge status-${record.status}">${escapeHtml(record.status)}</span><br /><small>${escapeHtml(record.depositStatus)}</small></td>
-        <td><div class="row-actions"><select data-booking-status="${record.id}"><option value="pending_review" ${record.status === "pending_review" ? "selected" : ""}>Pending review</option><option value="confirmed" ${record.status === "confirmed" ? "selected" : ""}>Approve / confirm</option><option value="completed" ${record.status === "completed" ? "selected" : ""}>Completed</option><option value="reschedule_requested" ${record.status === "reschedule_requested" ? "selected" : ""}>Reschedule requested</option><option value="cancelled_by_client" ${record.status === "cancelled_by_client" ? "selected" : ""}>Cancelled by client</option><option value="cancelled_by_brookia" ${record.status === "cancelled_by_brookia" ? "selected" : ""}>Cancelled by Brookia</option><option value="declined" ${record.status === "declined" ? "selected" : ""}>Declined</option><option value="no_show" ${record.status === "no_show" ? "selected" : ""}>No-show</option><option value="time_unavailable" ${record.status === "time_unavailable" ? "selected" : ""}>Time unavailable</option></select><button class="button button-secondary button-small" data-view-booking="${record.id}">Details</button></div></td>
+        <td><div class="row-actions"><select data-booking-status="${record.id}"><option value="pending_review" ${record.status === "pending_review" ? "selected" : ""}>Pending review</option><option value="awaiting_deposit" ${record.status === "awaiting_deposit" ? "selected" : ""} disabled>Awaiting deposit</option><option value="confirmed" ${record.status === "confirmed" ? "selected" : ""}>Approve / request deposit</option><option value="completed" ${record.status === "completed" ? "selected" : ""}>Completed</option><option value="reschedule_requested" ${record.status === "reschedule_requested" ? "selected" : ""}>Reschedule requested</option><option value="cancelled_by_client" ${record.status === "cancelled_by_client" ? "selected" : ""}>Cancelled by client</option><option value="cancelled_by_brookia" ${record.status === "cancelled_by_brookia" ? "selected" : ""}>Cancelled by Brookia</option><option value="declined" ${record.status === "declined" ? "selected" : ""}>Declined</option><option value="no_show" ${record.status === "no_show" ? "selected" : ""}>No-show</option><option value="time_unavailable" ${record.status === "time_unavailable" ? "selected" : ""}>Time unavailable</option></select>${record.status === "awaiting_deposit" ? `<button class="button button-primary button-small" data-mark-deposit-paid="${record.id}">Mark deposit paid</button>` : ""}<button class="button button-secondary button-small" data-view-booking="${record.id}">Details</button></div></td>
       </tr>`).join("")}</tbody></table></div>`;
   }
 
@@ -1824,7 +1854,8 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     return `${adminHeading("Availability", "Set normal working hours and block dates that should never appear to clients.")}
       <form id="availability-form">
         <div class="admin-card"><div class="admin-card-header"><h2>Weekly Schedule</h2></div><div class="entity-list">${dayNames.map((day, index) => { const rule = state.availability.days[index]; return `<div class="entity-row"><label class="checkbox-label"><input type="checkbox" name="day-enabled-${index}" ${rule ? "checked" : ""} /><strong>${day}</strong></label><div class="entity-actions"><label>Start<input type="time" name="day-start-${index}" value="${rule?.start || "09:00"}" /></label><label>End<input type="time" name="day-end-${index}" value="${rule?.end || "17:00"}" /></label></div></div>`; }).join("")}</div></div>
-        <div class="admin-card"><div class="form-grid three-columns"><label>Buffer before (minutes)<input type="number" min="0" max="240" step="15" name="beforeMinutes" value="${state.availability.beforeMinutes || 0}" /></label><label>Buffer after (minutes)<input type="number" min="0" max="240" step="15" name="bufferMinutes" value="${state.availability.bufferMinutes}" /></label><label>Maximum appointments per day<input type="number" min="1" max="50" step="1" name="maximumAppointmentsPerDay" value="${state.availability.maximumAppointmentsPerDay || 6}" /></label><label>Minimum booking notice (hours)<input type="number" min="0" step="1" name="minNoticeHours" value="${state.availability.minNoticeHours}" /></label><label>Booking window (days)<input type="number" min="1" step="1" name="bookingWindowDays" value="${state.availability.bookingWindowDays}" /></label></div><button class="button button-primary" style="margin-top:18px">Save Availability</button></div>
+        <div class="notice notice-info"><strong>Sunday:</strong> Request-only with a ${money.format(state.operations.sundaySurcharge)} surcharge. Sunday remains closed on the public calendar until Kia agrees to a specific request.</div>
+        <div class="admin-card"><div class="form-grid three-columns"><label>Buffer before (minutes)<input type="number" min="0" max="240" step="15" name="beforeMinutes" value="${state.availability.beforeMinutes || 0}" /></label><label>Buffer after (minutes)<input type="number" min="0" max="240" step="15" name="bufferMinutes" value="${state.availability.bufferMinutes}" /></label><label>Maximum appointments per day<input type="number" min="1" max="50" step="1" name="maximumAppointmentsPerDay" value="${state.availability.maximumAppointmentsPerDay || 2}" /></label><label>Minimum booking notice (hours)<input type="number" min="0" step="1" name="minNoticeHours" value="${state.availability.minNoticeHours}" /></label><label>Booking window (days)<input type="number" min="1" step="1" name="bookingWindowDays" value="${state.availability.bookingWindowDays}" /></label></div><button class="button button-primary" style="margin-top:18px">Save Availability</button></div>
       </form>
       <div class="admin-card"><div class="admin-card-header"><h2>Blocked Dates</h2></div><form id="blocked-date-form" class="inline-form"><label>Date<input type="date" name="blockedDate" required /></label><button class="button button-primary">Block Date</button></form><div class="entity-list" style="margin-top:16px">${state.availability.blockedDates.length ? state.availability.blockedDates.sort().map(date => `<div class="entity-row"><strong>${longDateFormatter.format(new Date(`${date}T12:00:00`))}</strong><button class="button button-danger button-small" data-unblock-date="${date}">Remove</button></div>`).join("") : '<div class="empty-state">No dates are currently blocked.</div>'}</div></div>
       <div class="admin-card"><div class="admin-card-header"><h2>Vacation Dates</h2></div><form id="vacation-date-form" class="inline-form"><label>Date<input type="date" name="vacationDate" required /></label><button class="button button-primary">Add Vacation Date</button></form><div class="entity-list" style="margin-top:16px">${state.availability.vacationDates.length ? state.availability.vacationDates.sort().map(date => `<div class="entity-row"><strong>${longDateFormatter.format(new Date(`${date}T12:00:00`))}</strong><button class="button button-danger button-small" data-remove-vacation="${date}">Remove</button></div>`).join("") : '<div class="empty-state">No vacation dates are currently saved.</div>'}</div></div>
@@ -1850,8 +1881,16 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         <label>Appointment address<input name="address" value="${escapeHtml(state.business.address)}" /></label>
         <label class="full-span">Home-page message<textarea name="tagline" rows="3">${escapeHtml(state.business.tagline)}</textarea></label>
         <label>Address visibility<select name="addressVisibility"><option value="after" ${state.business.addressVisibility === "after" ? "selected" : ""}>Show after booking</option><option value="public" ${state.business.addressVisibility === "public" ? "selected" : ""}>Show publicly</option><option value="hidden" ${state.business.addressVisibility === "hidden" ? "selected" : ""}>Never show in app</option></select></label>
-        <div class="notice notice-warning full-span"><strong>Payments disabled:</strong> No real payment provider is connected. Deposit actions are demonstrations only.</div>
-      </div><button class="button button-primary" style="margin-top:18px">Save Business Settings</button></div></form>
+      </div></div>
+      <div class="admin-card"><div class="admin-card-header"><h2>Deposits & Future Payments</h2></div><div class="form-grid two-columns">
+        <label>Cash App handle<input name="cashAppHandle" value="${escapeHtml(state.operations.cashAppHandle)}" placeholder="$handle" autocomplete="off" /></label>
+        <label>Zelle email or phone<input name="zelleContact" value="${escapeHtml(state.operations.zelleContact)}" autocomplete="off" /></label>
+        <label>Sunday request surcharge<input type="number" min="0" step="1" name="sundaySurcharge" value="${state.operations.sundaySurcharge}" /></label>
+        <label>Private-photo retention (days)<input type="number" min="1" max="365" step="1" name="photoRetentionDays" value="${state.operations.photoRetentionDays}" /></label>
+        <label class="full-span">Deposit instructions<textarea name="depositInstructions" rows="3">${escapeHtml(state.operations.depositInstructions)}</textarea></label>
+        <div class="notice notice-info full-span"><strong>Manual deposits:</strong> Customers are sent Cash App/Zelle details only after approval. Kia must verify receipt and click “Mark deposit paid.” Stripe can be added later but is not active.</div>
+        <div class="notice notice-warning full-span"><strong>Automated texting:</strong> Consent and message queues are ready, but no texts will be sent until a texting provider is selected, funded, and connected. Current provider: ${escapeHtml(state.operations.smsProvider)}.</div>
+      </div><button class="button button-primary" style="margin-top:18px">Save Business & Deposit Settings</button></div></form>
       <form id="security-pin-form"><div class="admin-card"><div class="admin-card-header"><h2>Security</h2></div><p>Change the administrator PIN. All other signed-in devices will be logged out.</p><div class="form-grid three-columns"><label>Current PIN<input type="password" name="currentPin" inputmode="numeric" pattern="[0-9]{6,12}" required autocomplete="current-password" /></label><label>New PIN<input type="password" name="newPin" inputmode="numeric" pattern="[0-9]{6,12}" required autocomplete="new-password" /></label><label>Confirm new PIN<input type="password" name="confirmNewPin" inputmode="numeric" pattern="[0-9]{6,12}" required autocomplete="new-password" /></label></div><button class="button button-primary" style="margin-top:18px">Change PIN</button></div></form>`;
   }
 
@@ -1888,6 +1927,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     document.querySelectorAll("[data-feature-gallery]").forEach(button => button.addEventListener("click", () => updateGalleryImage(button.dataset.featureGallery, { featured: true })));
     document.querySelectorAll("[data-delete-gallery]").forEach(button => button.addEventListener("click", () => deleteGalleryImage(button.dataset.deleteGallery)));
     document.querySelectorAll("[data-booking-status]").forEach(select => select.addEventListener("change", () => updateBookingStatus(select.dataset.bookingStatus, select.value)));
+    document.querySelectorAll("[data-mark-deposit-paid]").forEach(button => button.addEventListener("click", () => markDepositPaid(button.dataset.markDepositPaid)));
     document.querySelectorAll("[data-view-booking]").forEach(button => button.addEventListener("click", () => showBookingDetails(button.dataset.viewBooking)));
     document.getElementById("promotion-form")?.addEventListener("submit", savePromotion);
     document.getElementById("availability-form")?.addEventListener("submit", saveAvailability);
@@ -2056,7 +2096,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     if (!record) return;
     if (!USE_LOCAL_FALLBACK) {
       try {
-        if (status === "confirmed") await apiRequest(`/admin/bookings/${encodeURIComponent(id)}/approve`, { method: "POST", body: JSON.stringify({ appointmentStartAt: record.requested_start_at || `${record.date}T${record.time}:00` }) });
+        if (status === "confirmed") await apiRequest(`/admin/bookings/${encodeURIComponent(id)}/approve`, { method: "POST", body: JSON.stringify({ appointmentStartAt: record.requested_start_at || `${record.date}T${record.time}:00`, approvedFinalTotalCents: Math.round(Number(record.finalPrice ?? record.total ?? 0) * 100) }) });
         else await apiRequest(`/admin/bookings/${encodeURIComponent(id)}/status`, { method: "POST", body: JSON.stringify({ status }) });
         applyServerState(await apiRequest("/admin/state"));
         showToast("Booking status updated.");
@@ -2067,6 +2107,23 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     record.status = status;
     saveState("Booking status updated.");
     renderAdmin();
+  }
+
+  async function markDepositPaid(id) {
+    if (!window.confirm("Confirm that Kia has personally verified this deposit was received?")) return;
+    const method = window.prompt("Enter the payment method: cash_app, zelle, cash, waived, or other", "cash_app");
+    if (!method) return;
+    try {
+      await apiRequest(`/admin/bookings/${encodeURIComponent(id)}/deposit`, {
+        method: "POST",
+        body: JSON.stringify({ paymentStatus: "deposit_paid", method: method.trim().toLowerCase() })
+      });
+      applyServerState(await apiRequest("/admin/state"));
+      showToast("Deposit marked paid and appointment confirmed.");
+      renderAdmin();
+    } catch (error) {
+      showToast(error.message);
+    }
   }
 
   function showBookingDetails(id) {
@@ -2088,6 +2145,8 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
             <div class="line-item"><span>Time</span><strong>${formatTime(record.time)}</strong></div>
             <div class="line-item"><span>Status</span><strong>${escapeHtml(record.status)}</strong></div>
             <div class="line-item"><span>Deposit</span><strong>${record.status === "pending_review" ? "Pending approval" : money.format(record.deposit || 0)}</strong></div>
+            <div class="line-item"><span>Deposit status</span><strong>${escapeHtml(record.depositStatus || "deposit_not_requested")}</strong></div>
+            <div class="line-item"><span>Deposit method</span><strong>${escapeHtml(record.deposit_method || "Not recorded")}</strong></div>
             <div class="line-item"><span>Balance</span><strong>${record.status === "pending_review" ? "Pending approval" : money.format(record.balance || 0)}</strong></div><div class="line-item"><span>Original estimate</span><strong>${money.format(record.originalEstimatedPrice || record.total || 0)}</strong></div><form data-final-price-form="${record.id}" class="form-grid"><label>Final approved price<input name="finalPrice" type="number" min="0" step="1" value="${record.finalPrice ?? record.total ?? 0}" /></label><button class="button button-primary button-small">Save for approval</button></form>
           </div>
           <div class="summary-card">
@@ -2125,7 +2184,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     state.availability.beforeMinutes = Number(form.get("beforeMinutes") || 0);
     state.availability.minNoticeHours = Number(form.get("minNoticeHours") || 0);
     state.availability.bookingWindowDays = Number(form.get("bookingWindowDays") || 60);
-    state.availability.maximumAppointmentsPerDay = Number(form.get("maximumAppointmentsPerDay") || 6);
+    state.availability.maximumAppointmentsPerDay = Number(form.get("maximumAppointmentsPerDay") || 2);
     saveState("Availability saved.");
     renderAdmin();
   }
@@ -2165,6 +2224,14 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       paymentMode: "demo",
       paymentLink: "",
       samplePrices: false
+    };
+    state.operations = {
+      ...state.operations,
+      cashAppHandle: String(form.get("cashAppHandle") || "").trim(),
+      zelleContact: String(form.get("zelleContact") || "").trim(),
+      depositInstructions: String(form.get("depositInstructions") || "").trim(),
+      sundaySurcharge: Number(form.get("sundaySurcharge") || 50),
+      photoRetentionDays: Number(form.get("photoRetentionDays") || 90)
     };
     saveState("Business settings saved.");
     renderAll();

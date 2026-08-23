@@ -31,7 +31,7 @@ Audit sanitization rejects keys resembling PINs, passwords, tokens, secrets, coo
 
 ## Customer communications
 
-No paid email or SMS provider is activated.
+No paid email or SMS provider is activated. Customers who select Text must explicitly consent to transactional messages. Eligible messages are written to a D1 outbox as `pending_provider`; they are not sent until an owner-approved provider is configured. Marketing messages are out of scope.
 
 The planned event templates are:
 
@@ -46,7 +46,7 @@ The planned event templates are:
 - appointment reminder; and
 - remaining-balance reminder.
 
-The application can display these states in the customer confirmation page and administrator dashboard now. Automated email requires a future approved transactional email provider and secrets such as `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS`, and an approved reply-to address. Automated text messages require a separately approved SMS provider, `SMS_PROVIDER_API_KEY`, `SMS_FROM_NUMBER`, and explicit customer consent records. Provider activation and message wording require Brookia’s approval.
+The application can display these states in the customer confirmation page and administrator dashboard now. Automated email requires a future approved transactional email provider and secrets such as `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS`, and an approved reply-to address. Automated text messages require a separately approved SMS provider, `SMS_PROVIDER_API_KEY`, `SMS_FROM_NUMBER`, registered sender/compliance setup, and explicit customer consent records. Provider activation, costs, and final message wording still require owner approval.
 
 ## Backup and recovery
 
@@ -75,4 +75,4 @@ Perform a preview test-restore quarterly and after material schema changes. A te
 
 ## Retention and deletion
 
-Public gallery deletion removes the R2 object and archives D1 metadata. Booking history is never deleted through application routes. Private client images default to a 90-day deletion date, but the actual retention period requires Brookia’s approval. A scheduled deletion job should be added only after that decision; it must delete the R2 object, mark D1 metadata deleted, and write a redacted audit event.
+Public gallery deletion removes the R2 object and archives D1 metadata. Booking history is never deleted through application routes. Brookia approved a 90-day private-client-image retention period. Each upload receives a deletion date; authenticated dashboard loading and the explicit cleanup route delete expired R2 objects, mark D1 metadata deleted, and write a redacted audit event. A dedicated scheduled Worker can be added later if cleanup must run even when the dashboard is not opened.

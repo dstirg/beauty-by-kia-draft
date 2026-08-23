@@ -15,7 +15,7 @@ const required = [
   "appointment_buffers", "bookings", "booking_services", "booking_add_ons",
   "booking_price_snapshots", "booking_status_history", "policy_versions", "policy_acceptances",
   "admin_accounts", "admin_sessions", "login_attempts", "audit_logs", "gallery_images",
-  "private_upload_metadata", "application_settings"
+  "private_upload_metadata", "application_settings", "communication_outbox", "payment_status_history"
 ];
 const tables = new Set(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name));
 const missing = required.filter(name => !tables.has(name));
@@ -27,5 +27,9 @@ for (const trigger of ["bookings_prevent_overlap_insert", "bookings_prevent_over
 }
 const privateUploadColumns = new Set(database.prepare("PRAGMA table_info(private_upload_metadata)").all().map(row => row.name));
 if (!privateUploadColumns.has("claim_token_hash")) throw new Error("Missing private upload authorization column.");
+const bookingColumns = new Set(database.prepare("PRAGMA table_info(bookings)").all().map(row => row.name));
+for (const column of ["sms_consent_at", "deposit_method", "deposit_requested_at", "deposit_received_at"]) {
+  if (!bookingColumns.has(column)) throw new Error(`Missing booking operations column: ${column}`);
+}
 
 console.log(`Verified D1-compatible migration with ${required.length} required tables.`);

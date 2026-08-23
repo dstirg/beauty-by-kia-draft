@@ -31,6 +31,7 @@ const AUTH_WINDOW_MINUTES = 15;
 const LOCKOUT_MINUTES = 15;
 const PRIVATE_UPLOAD_RETENTION_DAYS = 90;
 const PRIVATE_UPLOAD_TYPES = Object.freeze(["current_look", "inspiration"]);
+const MANUAL_DEPOSIT_METHODS = Object.freeze(["cash_app", "zelle", "cash", "waived", "other"]);
 const DUMMY_SALT = "bm90LWEtc2VjcmV0LXNhbHQ";
 
 function response(payload, status = 200, extraHeaders = {}, cookies = []) {
@@ -379,6 +380,9 @@ async function handleCreateBooking(request, env) {
   const clientEmail = normalizeEmail(client.email);
   if (!isValidEmail(clientEmail)) throw new RequestError("A valid client email is required.");
   const clientPhone = requiredString(client.phone, "Client phone", 40);
+  const preferredContact = String(client.preferredContact || "email").trim().toLowerCase().slice(0, 20);
+  const smsConsentAt = body.smsConsent === true ? nowIso() : null;
+  if (preferredContact === "text" && !smsConsentAt) throw new RequestError("Text-message consent is required when text is selected.");
   const requestedStart = new Date(body.requestedStartAt);
   if (!Number.isFinite(requestedStart.getTime()) || requestedStart.getTime() <= Date.now()) throw new RequestError("A future appointment time is required.");
   if (body.acceptedPolicies !== true) throw new RequestError("The current policies must be accepted.");
@@ -403,9 +407,9 @@ async function handleCreateBooking(request, env) {
   };
   const statements = [
     env.DB.prepare(`INSERT INTO bookings (id, reference, client_name, client_email, client_phone, preferred_contact, customer_notes,
-      requested_start_at, estimated_total_cents, deposit_cents, remaining_balance_cents)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(bookingId, reference, clientName, clientEmail, clientPhone, String(client.preferredContact || "email").slice(0, 20), String(client.notes || "").slice(0, 4000), requestedStart.toISOString(), estimatedTotal, deposit, Math.max(0, estimatedTotal - deposit)),
+      requested_start_at, estimated_total_cents, deposit_cents, remaining_balance_cents, sms_consent_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(bookingId, reference, clientName, clientEmail, clientPhone, preferredContact, String(client.notes || "").slice(0, 4000), requestedStart.toISOString(), estimatedTotal, deposit, Math.max(0, estimatedTotal - deposit), smsConsentAt),
     env.DB.prepare(`INSERT INTO booking_services (booking_id, service_id, service_name_snapshot, price_type_snapshot,
       minimum_price_cents_snapshot, maximum_price_cents_snapshot, duration_minutes_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .bind(bookingId, service.id, service.name, service.price_type, servicePrice, service.maximum_price_cents, service.duration_minutes),
@@ -420,6 +424,12 @@ async function handleCreateBooking(request, env) {
     statements.push(env.DB.prepare(`INSERT INTO booking_add_ons (booking_id, add_on_id, add_on_name_snapshot, price_type_snapshot,
       minimum_price_cents_snapshot, maximum_price_cents_snapshot) VALUES (?, ?, ?, ?, ?, ?)`)
       .bind(bookingId, addOn.id, addOn.name, addOn.price_type, addOn.minimum_price_cents, addOn.maximum_price_cents));
+  }
+  if (smsConsentAt) {
+    statements.push(env.DB.prepare(`INSERT INTO communication_outbox
+      (id, booking_id, channel, message_type, recipient, body_text, status)
+      VALUES (?, ?, 'sms', 'booking_request_received', ?, ?, 'pending_provider')`)
+      .bind(uuid(), bookingId, clientPhone, `Beauty by Kia received request ${reference}. It is pending Kia's review and is not yet confirmed.`));
   }
   const uploadIds = Array.isArray(body.privateUploadIds) ? [...new Set(body.privateUploadIds.filter(value => typeof value === "string"))] : [];
   if (uploadIds.length > 2) throw new RequestError("A maximum of two appointment photos is allowed.");
@@ -448,7 +458,7 @@ async function handleCreateBooking(request, env) {
 
 async function loadAdminState(env) {
   const catalog = await catalogRows(env);
-  const [bookings, blockedDates, calendarBlocks, auditLogs, galleryImages, privateUploads] = await Promise.all([
+  const [bookings, blockedDates, calendarBlocks, auditLogs, galleryImages, privateUploads, adminSettings, communicationOutbox] = await Promise.all([
     env.DB.prepare(`SELECT b.*, bs.service_name_snapshot AS service_name, bs.duration_minutes_snapshot
       FROM bookings b LEFT JOIN booking_services bs ON bs.booking_id = b.id
       WHERE b.archived_at IS NULL ORDER BY b.created_at DESC LIMIT 500`).all(),
@@ -456,14 +466,37 @@ async function loadAdminState(env) {
     env.DB.prepare("SELECT * FROM calendar_blocks WHERE archived_at IS NULL ORDER BY starts_at").all(),
     env.DB.prepare("SELECT action, entity_type, entity_id, details_json, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 200").all(),
     env.DB.prepare("SELECT id, service_id, caption, alt_text, sort_order, is_featured, is_published FROM gallery_images WHERE archived_at IS NULL ORDER BY service_id, sort_order").all(),
-    env.DB.prepare("SELECT id, booking_id, upload_type FROM private_upload_metadata WHERE booking_id IS NOT NULL AND deleted_at IS NULL ORDER BY created_at").all()
+    env.DB.prepare("SELECT id, booking_id, upload_type FROM private_upload_metadata WHERE booking_id IS NOT NULL AND deleted_at IS NULL ORDER BY created_at").all(),
+    env.DB.prepare(`SELECT setting_key, setting_value FROM application_settings
+      WHERE setting_key IN ('cash_app_handle','zelle_contact')`).all(),
+    env.DB.prepare(`SELECT id, booking_id, channel, message_type, status, scheduled_for, sent_at, created_at
+      FROM communication_outbox ORDER BY created_at DESC LIMIT 200`).all()
   ]);
-  return { ...catalog, bookings: bookings.results, blockedDates: blockedDates.results, calendarBlocks: calendarBlocks.results, gallery: galleryImages.results.map(image => ({ ...image, url: `/api/gallery/${image.id}/content` })), privateUploads: privateUploads.results.map(upload => ({ ...upload, url: `/api/admin/uploads/${upload.id}/content` })), auditLogs: auditLogs.results.map(row => ({ ...row, details: parseJson(row.details_json, {}) })) };
+  return { ...catalog, settings: { ...catalog.settings, ...Object.fromEntries(adminSettings.results.map(item => [item.setting_key, item.setting_value])) }, bookings: bookings.results, blockedDates: blockedDates.results, calendarBlocks: calendarBlocks.results, gallery: galleryImages.results.map(image => ({ ...image, url: `/api/gallery/${image.id}/content` })), privateUploads: privateUploads.results.map(upload => ({ ...upload, url: `/api/admin/uploads/${upload.id}/content` })), communicationOutbox: communicationOutbox.results, auditLogs: auditLogs.results.map(row => ({ ...row, details: parseJson(row.details_json, {}) })) };
+}
+
+async function purgeExpiredPrivateUploads(request, env, adminId) {
+  if (!env.PRIVATE_UPLOADS) return 0;
+  const expired = await env.DB.prepare(`SELECT id, object_key FROM private_upload_metadata
+    WHERE deleted_at IS NULL AND retention_delete_after IS NOT NULL AND retention_delete_after <= ?
+    ORDER BY retention_delete_after LIMIT 50`).bind(nowIso()).all();
+  let removed = 0;
+  for (const upload of expired.results) {
+    await env.PRIVATE_UPLOADS.delete(upload.object_key);
+    const result = await env.DB.prepare("UPDATE private_upload_metadata SET deleted_at=?, updated_at=? WHERE id=? AND deleted_at IS NULL")
+      .bind(nowIso(), nowIso(), upload.id).run();
+    removed += Number(result.meta?.changes || 0);
+  }
+  if (removed) await audit(env, request, "private_upload_retention_cleanup", adminId, "private_upload_metadata", null, { removedCount: removed });
+  return removed;
 }
 
 async function handleAdminState(request, env) {
   const session = await authenticate(request, env, request.method !== "GET");
-  if (request.method === "GET") return response({ ok: true, ...(await loadAdminState(env)) });
+  if (request.method === "GET") {
+    await purgeExpiredPrivateUploads(request, env, session.admin_account_id);
+    return response({ ok: true, ...(await loadAdminState(env)) });
+  }
   const body = await readJson(request);
   const statements = [];
   if (Array.isArray(body.services)) {
@@ -566,6 +599,21 @@ async function handleAdminState(request, env) {
       }
     }
   }
+  if (body.operations) {
+    const operationSettings = {
+      cash_app_handle: { value: body.operations.cashAppHandle, sensitive: 1 },
+      zelle_contact: { value: body.operations.zelleContact, sensitive: 1 },
+      deposit_instructions: { value: body.operations.depositInstructions, sensitive: 0 },
+      sunday_surcharge_cents: { value: Math.max(0, Math.round(Number(body.operations.sundaySurcharge || 50) * 100)).toString(), sensitive: 0 },
+      private_upload_retention_days: { value: Math.min(365, Math.max(1, Math.round(Number(body.operations.photoRetentionDays || 90)))).toString(), sensitive: 0 }
+    };
+    for (const [key, item] of Object.entries(operationSettings)) {
+      if (item.value == null) continue;
+      statements.push(env.DB.prepare(`INSERT INTO application_settings (setting_key, setting_value, is_sensitive) VALUES (?, ?, ?)
+        ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value, is_sensitive=excluded.is_sensitive, updated_at=CURRENT_TIMESTAMP`)
+        .bind(key, String(item.value).trim().slice(0, 4000), item.sensitive));
+    }
+  }
   if (body.promotion) {
     statements.push(env.DB.prepare(`UPDATE promotions SET banner_text=?, starts_at=?, ends_at=?, is_active=?, show_badges=?, updated_at=CURRENT_TIMESTAMP
       WHERE id='grand-opening-special'`)
@@ -588,7 +636,7 @@ async function handleAdminState(request, env) {
     );
   }
   if (statements.length) await env.DB.batch(statements);
-  for (const [present, action] of [[body.services, "price_change"], [body.addOns, "add_on_change"], [body.depositTiers, "deposit_rule_change"], [body.availability, "calendar_change"], [body.policies, "policy_change"], [body.promotion, "promotion_change"]]) {
+  for (const [present, action] of [[body.services, "price_change"], [body.addOns, "add_on_change"], [body.depositTiers, "deposit_rule_change"], [body.availability, "calendar_change"], [body.policies, "policy_change"], [body.promotion, "promotion_change"], [body.operations, "operations_setting_change"]]) {
     if (present) await audit(env, request, action, session.admin_account_id, "application", "beauty-by-kia", {});
   }
   return response({ ok: true, ...(await loadAdminState(env)) });
@@ -635,22 +683,96 @@ async function handleApproveBooking(request, env, bookingId) {
   const dayStart = `${local.date}T00:00:00.000Z`;
   const dayEnd = `${local.date}T23:59:59.999Z`;
   const finalTotal = body.approvedFinalTotalCents == null ? booking.estimated_total_cents : Math.max(0, Math.round(Number(body.approvedFinalTotalCents)));
-  const update = await env.DB.prepare(`UPDATE bookings SET status='confirmed', payment_status='deposit_not_requested',
+  const depositRequired = Math.max(0, Number(booking.deposit_cents || 0));
+  const nextStatus = depositRequired > 0 ? "awaiting_deposit" : "confirmed";
+  const nextPaymentStatus = depositRequired > 0 ? "deposit_requested" : "deposit_not_requested";
+  const settingsResult = await env.DB.prepare(`SELECT setting_key, setting_value FROM application_settings
+    WHERE setting_key IN ('manual_deposits_enabled','cash_app_handle','zelle_contact','deposit_instructions')`).all();
+  const paymentSettings = Object.fromEntries(settingsResult.results.map(item => [item.setting_key, item.setting_value]));
+  if (depositRequired > 0 && paymentSettings.manual_deposits_enabled !== "true") {
+    throw new RequestError("Manual deposit requests are not enabled.", 409, "deposit_unavailable");
+  }
+  const paymentOptions = [
+    paymentSettings.cash_app_handle ? `Cash App ${paymentSettings.cash_app_handle}` : null,
+    paymentSettings.zelle_contact ? `Zelle ${paymentSettings.zelle_contact}` : null
+  ].filter(Boolean);
+  const defaultCustomerMessage = depositRequired > 0
+    ? `Beauty by Kia approved request ${booking.reference}. A $${(depositRequired / 100).toFixed(2)} deposit is required. ${paymentOptions.length ? `Pay using ${paymentOptions.join(" or ")}.` : "Kia will send Cash App or Zelle details directly."} Kia will verify the deposit before confirmation.`
+    : `Beauty by Kia approved request ${booking.reference}. Your appointment is confirmed.`;
+  const customerMessage = String(body.customerMessage || defaultCustomerMessage).slice(0, 4000);
+  const updatedAt = nowIso();
+  const update = await env.DB.prepare(`UPDATE bookings SET status=?, payment_status=?,
       appointment_start_at=?, appointment_end_at=?, buffered_start_at=?, buffered_end_at=?, approved_final_total_cents=?,
-      approved_at=?, private_admin_note=?, customer_message=?, updated_at=?
+      remaining_balance_cents=?, approved_at=?, deposit_requested_at=?, private_admin_note=?, customer_message=?, updated_at=?
     WHERE id=? AND status IN ('pending_review','reschedule_requested','time_unavailable')
       AND NOT EXISTS (SELECT 1 FROM bookings existing WHERE existing.id<>? AND existing.status IN ('awaiting_deposit','confirmed')
         AND existing.archived_at IS NULL AND existing.buffered_start_at < ? AND existing.buffered_end_at > ?)
       AND (SELECT COUNT(*) FROM bookings day_booking WHERE day_booking.id<>? AND day_booking.status IN ('awaiting_deposit','confirmed')
         AND day_booking.appointment_start_at >= ? AND day_booking.appointment_start_at <= ?) < ?`)
-    .bind(window.appointmentStartAt, window.appointmentEndAt, window.bufferedStartAt, window.bufferedEndAt, finalTotal,
-      nowIso(), String(body.privateNote || "").slice(0, 4000), String(body.customerMessage || "").slice(0, 4000), nowIso(), booking.id,
+    .bind(nextStatus, nextPaymentStatus, window.appointmentStartAt, window.appointmentEndAt, window.bufferedStartAt, window.bufferedEndAt, finalTotal,
+      Math.max(0, finalTotal - depositRequired), updatedAt, depositRequired > 0 ? updatedAt : null, String(body.privateNote || "").slice(0, 4000), customerMessage, updatedAt, booking.id,
       booking.id, window.bufferedEndAt, window.bufferedStartAt, booking.id, dayStart, dayEnd, buffers.maximum_appointments_per_day).run();
   if (!update.meta?.changes) return failApproval(env, request, session, booking, "concurrent conflict or daily limit");
-  await env.DB.prepare("INSERT INTO booking_status_history (id, booking_id, previous_status, new_status, customer_reason, private_admin_note, changed_by_admin_id) VALUES (?, ?, ?, 'confirmed', ?, ?, ?)")
-    .bind(uuid(), booking.id, booking.status, String(body.customerMessage || "").slice(0, 1000), String(body.privateNote || "").slice(0, 1000), session.admin_account_id).run();
-  await audit(env, request, "booking_approval", session.admin_account_id, "booking", booking.id, { previousStatus: booking.status, newStatus: "confirmed" });
-  return response({ ok: true, booking: { id: booking.id, status: "confirmed", ...window, approvedFinalTotalCents: finalTotal } });
+  const followUp = [
+    env.DB.prepare("INSERT INTO booking_status_history (id, booking_id, previous_status, new_status, customer_reason, private_admin_note, changed_by_admin_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(uuid(), booking.id, booking.status, nextStatus, customerMessage.slice(0, 1000), String(body.privateNote || "").slice(0, 1000), session.admin_account_id)
+  ];
+  if (depositRequired > 0) {
+    followUp.push(env.DB.prepare(`INSERT INTO payment_status_history
+      (id, booking_id, previous_status, new_status, payment_method, amount_cents, changed_by_admin_id)
+      VALUES (?, ?, ?, 'deposit_requested', NULL, ?, ?)`)
+      .bind(uuid(), booking.id, booking.payment_status || "deposit_not_requested", depositRequired, session.admin_account_id));
+  }
+  if (booking.sms_consent_at && booking.client_phone) {
+    followUp.push(env.DB.prepare(`INSERT INTO communication_outbox
+      (id, booking_id, channel, message_type, recipient, body_text, status)
+      VALUES (?, ?, 'sms', ?, ?, ?, 'pending_provider')`)
+      .bind(uuid(), booking.id, depositRequired > 0 ? "deposit_requested" : "appointment_confirmed", booking.client_phone, customerMessage.slice(0, 1000)));
+  }
+  await env.DB.batch(followUp);
+  await audit(env, request, "booking_approval", session.admin_account_id, "booking", booking.id, { previousStatus: booking.status, newStatus: nextStatus, paymentStatus: nextPaymentStatus });
+  return response({ ok: true, booking: { id: booking.id, status: nextStatus, paymentStatus: nextPaymentStatus, ...window, approvedFinalTotalCents: finalTotal } });
+}
+
+async function handleBookingDeposit(request, env, bookingId) {
+  const session = await authenticate(request, env, true);
+  const body = await readJson(request);
+  const paymentStatus = String(body.paymentStatus || "");
+  if (!["deposit_requested", "deposit_pending", "deposit_paid", "deposit_failed", "deposit_refunded"].includes(paymentStatus)) {
+    throw new RequestError("Select a valid deposit status.");
+  }
+  const method = body.method == null ? null : String(body.method);
+  if (method && !MANUAL_DEPOSIT_METHODS.includes(method)) throw new RequestError("Select a valid deposit method.");
+  const booking = await env.DB.prepare("SELECT * FROM bookings WHERE id=?").bind(bookingId).first();
+  if (!booking) throw new RequestError("Booking not found.", 404);
+  if (paymentStatus === "deposit_paid" && !method) throw new RequestError("Select how the deposit was received.");
+  const nextBookingStatus = paymentStatus === "deposit_paid" && booking.status === "awaiting_deposit" ? "confirmed" : booking.status;
+  const changedAt = nowIso();
+  const statements = [
+    env.DB.prepare(`UPDATE bookings SET payment_status=?, deposit_method=COALESCE(?, deposit_method),
+      deposit_received_at=CASE WHEN ?='deposit_paid' THEN ? ELSE deposit_received_at END,
+      status=?, updated_at=? WHERE id=?`)
+      .bind(paymentStatus, method, paymentStatus, changedAt, nextBookingStatus, changedAt, booking.id),
+    env.DB.prepare(`INSERT INTO payment_status_history
+      (id, booking_id, previous_status, new_status, payment_method, amount_cents, changed_by_admin_id, private_note)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(uuid(), booking.id, booking.payment_status, paymentStatus, method, Number(booking.deposit_cents || 0), session.admin_account_id, String(body.privateNote || "").slice(0, 1000))
+  ];
+  if (nextBookingStatus !== booking.status) {
+    statements.push(env.DB.prepare(`INSERT INTO booking_status_history
+      (id, booking_id, previous_status, new_status, customer_reason, private_admin_note, changed_by_admin_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(uuid(), booking.id, booking.status, nextBookingStatus, "Deposit received and verified by Kia.", String(body.privateNote || "").slice(0, 1000), session.admin_account_id));
+  }
+  if (paymentStatus === "deposit_paid" && booking.sms_consent_at && booking.client_phone) {
+    statements.push(env.DB.prepare(`INSERT INTO communication_outbox
+      (id, booking_id, channel, message_type, recipient, body_text, status)
+      VALUES (?, ?, 'sms', 'deposit_received', ?, ?, 'pending_provider')`)
+      .bind(uuid(), booking.id, booking.client_phone, `Beauty by Kia verified the deposit for request ${booking.reference}. Your appointment is confirmed.`));
+  }
+  await env.DB.batch(statements);
+  await audit(env, request, "deposit_status_change", session.admin_account_id, "booking", booking.id, { previousStatus: booking.payment_status, newStatus: paymentStatus, method, bookingStatus: nextBookingStatus });
+  return response({ ok: true, booking: { id: booking.id, status: nextBookingStatus, paymentStatus } });
 }
 
 async function handleBookingStatus(request, env, bookingId) {
@@ -774,9 +896,11 @@ async function handlePrivateUpload(request, env) {
   if (!uploads.length || uploads.length > 2) throw new RequestError("Add one current-look photo, one inspiration photo, or both.");
   if (new Set(uploads.map(item => item.contentHash)).size !== uploads.length) throw new RequestError("Please use a different image for each photo type.");
 
+  const retentionSetting = await env.DB.prepare("SELECT setting_value FROM application_settings WHERE setting_key='private_upload_retention_days'").first();
+  const retentionDays = Math.min(365, Math.max(1, Number(retentionSetting?.setting_value || PRIVATE_UPLOAD_RETENTION_DAYS)));
   const claimToken = randomToken(32);
   const claimHash = await sha256(claimToken);
-  const deleteAfter = new Date(Date.now() + PRIVATE_UPLOAD_RETENTION_DAYS * 86400000).toISOString();
+  const deleteAfter = new Date(Date.now() + retentionDays * 86400000).toISOString();
   const created = [];
   try {
     for (const upload of uploads) {
@@ -823,8 +947,15 @@ async function routeRequest(context) {
   if (method === "GET" && path === "catalog") return handleCatalog(env);
   if (method === "POST" && path === "bookings") return handleCreateBooking(request, env);
   if (["GET", "PUT"].includes(method) && path === "admin/state") return handleAdminState(request, env);
+  if (method === "POST" && path === "admin/uploads/purge-expired") {
+    const session = await authenticate(request, env, true);
+    const removed = await purgeExpiredPrivateUploads(request, env, session.admin_account_id);
+    return response({ ok: true, removed });
+  }
   let match = path.match(/^admin\/bookings\/([^/]+)\/approve$/u);
   if (method === "POST" && match) return handleApproveBooking(request, env, match[1]);
+  match = path.match(/^admin\/bookings\/([^/]+)\/deposit$/u);
+  if (method === "POST" && match) return handleBookingDeposit(request, env, match[1]);
   match = path.match(/^admin\/bookings\/([^/]+)\/status$/u);
   if (method === "POST" && match) return handleBookingStatus(request, env, match[1]);
   if (method === "POST" && path === "admin/gallery") return handleGalleryUpload(request, env);

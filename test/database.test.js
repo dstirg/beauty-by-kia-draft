@@ -75,3 +75,35 @@ test("production settings use D1 and disable browser authority and payments", ()
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM services").get().count, 30);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM add_ons").get().count, 10);
 });
+
+test("owner-approved availability, Sunday request surcharge, and daily limit are seeded", () => {
+  const db = database();
+  const weekdays = db.prepare("SELECT weekday, is_working_day, opens_at, closes_at FROM weekly_availability ORDER BY weekday").all();
+  for (const weekday of [2, 3, 4, 5]) {
+    assert.deepEqual({ ...weekdays.find(day => day.weekday === weekday) }, { weekday, is_working_day: 1, opens_at: "18:00", closes_at: "21:00" });
+  }
+  assert.deepEqual({ ...weekdays.find(day => day.weekday === 6) }, { weekday: 6, is_working_day: 1, opens_at: "08:00", closes_at: "18:00" });
+  assert.equal(weekdays.find(day => day.weekday === 0).is_working_day, 0);
+  assert.equal(db.prepare("SELECT maximum_appointments_per_day FROM appointment_buffers WHERE id='default'").get().maximum_appointments_per_day, 2);
+  const settings = Object.fromEntries(db.prepare("SELECT setting_key, setting_value FROM application_settings").all().map(row => [row.setting_key, row.setting_value]));
+  assert.equal(settings.sunday_request_only, "true");
+  assert.equal(settings.sunday_surcharge_cents, "5000");
+});
+
+test("manual deposit, SMS consent, and 90-day photo retention foundations are safe", () => {
+  const db = database();
+  const settings = Object.fromEntries(db.prepare("SELECT setting_key, setting_value FROM application_settings").all().map(row => [row.setting_key, row.setting_value]));
+  assert.equal(settings.payment_provider, "manual_offsite");
+  assert.equal(settings.manual_deposits_enabled, "true");
+  assert.equal(settings.stripe_available_later, "true");
+  assert.equal(settings.sms_provider, "none");
+  assert.equal(settings.sms_live_enabled, "false");
+  assert.equal(settings.sms_consent_required, "true");
+  assert.equal(settings.private_upload_retention_days, "90");
+  assert.equal(settings.private_upload_retention_approved, "true");
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
+  assert.equal(tables.has("communication_outbox"), true);
+  assert.equal(tables.has("payment_status_history"), true);
+  const bookingColumns = new Set(db.prepare("PRAGMA table_info(bookings)").all().map(row => row.name));
+  for (const column of ["sms_consent_at", "deposit_method", "deposit_requested_at", "deposit_received_at"]) assert.equal(bookingColumns.has(column), true);
+});

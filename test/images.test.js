@@ -70,6 +70,6 @@ test("private appointment uploads allow only one current-look and one inspiratio
   assert.equal(source.includes('form.getAll(item.field)'), true);
   assert.equal(source.includes("claim_token_hash"), true);
   assert.equal(client.includes('accept="image/jpeg,image/png"'), true);
-  assert.equal(client.includes("Maximum two photos: one current-look photo and one inspiration photo."), true);
+  assert.equal(client.includes("Maximum: one current-hair photo and one inspiration photo."), true);
   assert.equal(client.includes('href="tel:+15015220061">501-522-0061</a>'), true);
 });

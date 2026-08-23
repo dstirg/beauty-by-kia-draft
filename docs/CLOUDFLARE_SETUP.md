@@ -125,6 +125,6 @@ Before production approval, test from Brookia’s phone and a separate customer 
 6. Cancel the confirmed preview appointment and confirm the slot is released.
 7. Upload one public gallery image and one private customer image; verify they cannot cross surfaces.
 8. Change the PIN and confirm another active session is revoked.
-9. Confirm no real payment UI or network request exists.
+9. Confirm Stripe/card processing is absent, manual Cash App/Zelle instructions are editable only in the authenticated dashboard, and deposits remain awaiting verification until Kia marks them paid.
 
-Do not promote the preview to production until Brookia approves the schedule, policies, gallery, retention period, communications, and launch date.
+Do not promote the preview to production until the owner applies all migrations, Kia uploads and publishes her gallery, a real booking dry run passes, communication-provider decisions are complete, and the launch date is approved. The approved schedule and 90-day photo-retention period are now recorded.

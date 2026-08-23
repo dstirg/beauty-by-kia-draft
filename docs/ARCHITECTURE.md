@@ -6,7 +6,7 @@ Cloudflare D1 is the shared production source of truth. The production configura
 
 The public catalog reads D1. Administrator changes write D1 and become visible to other devices on their next catalog refresh. Booking price snapshots preserve the price, add-ons, estimate, deposit, balance, duration, and policy version that existed when the request was submitted.
 
-Real payments are inactive. The database retains future deposit statuses, but approval currently sets `deposit_not_requested` and confirms no payment.
+Stripe and automatic payment processing are inactive. For services with a deposit, approval changes the booking to `awaiting_deposit`, records `deposit_requested`, and provides Kia’s editable Cash App/Zelle instructions. Only an authenticated administrator can mark a manually verified deposit paid; that action confirms the appointment and records payment/status history.
 
 ## D1 tables
 
@@ -38,7 +38,7 @@ The migration creates these required tables:
 24. `private_upload_metadata`
 25. `application_settings`
 
-`calendar_blocks` is included for partial-day personal unavailable time. Primary keys, foreign keys, unique constraints, timestamps, indexes, archive fields, and approval/cancellation fields are defined in the migration.
+`calendar_blocks` is included for partial-day personal unavailable time. `communication_outbox` and `payment_status_history` support consent-backed future messaging and manual deposit history. Primary keys, foreign keys, unique constraints, timestamps, indexes, archive fields, and approval/cancellation fields are defined in the migrations.
 
 ## Pages Function routes
 
@@ -60,12 +60,14 @@ Authenticated administrator routes:
 - `GET /api/admin/state`
 - `PUT /api/admin/state`
 - `POST /api/admin/bookings/:id/approve`
+- `POST /api/admin/bookings/:id/deposit`
 - `POST /api/admin/bookings/:id/status`
 - `POST /api/admin/gallery`
 - `PUT /api/admin/gallery/:id`
 - `DELETE /api/admin/gallery/:id`
 - `GET /api/admin/gallery/:id/content`
 - `GET /api/admin/uploads/:id/content`
+- `POST /api/admin/uploads/purge-expired`
 
 All administrator mutations require an active D1 session, a matching same-origin request, and a CSRF token. The browser never decides administrator authorization by itself.
 
@@ -107,4 +109,4 @@ Gallery uploads:
 - remain private until D1 says the image is published; and
 - are streamed through controlled Pages Function routes.
 
-Private uploads use a different object namespace and bucket, never receive public URLs, and are streamed only to an authenticated administrator. Each booking accepts at most one current-look photo and one inspiration photo, using JPG or PNG files no larger than 8 MiB each. A one-use cryptographic claim token prevents another booking from attaching uploaded files. D1 records a default 90-day post-upload deletion date; the owner should review retention with Brookia before launch.
+Private uploads use a different object namespace and bucket, never receive public URLs, and are streamed only to an authenticated administrator. Each booking accepts at most one current-look photo and one inspiration photo, using JPG or PNG files no larger than 8 MiB each. A one-use cryptographic claim token prevents another booking from attaching uploaded files. Brookia approved a 90-day retention period. Expired R2 objects and their active metadata are cleaned when Kia opens the authenticated dashboard or invokes the cleanup route, with a redacted audit record.
