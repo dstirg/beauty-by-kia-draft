@@ -45,10 +45,17 @@ function errorResponse(message, status = 400, code = "request_error") {
 }
 
 function csrfCookie(token, maxAgeSeconds = 14400) {
-  return `${CSRF_COOKIE}=${encodeURIComponent(token)}; Secure; SameSite=Strict; Path=/api; Max-Age=${maxAgeSeconds}`;
+  // The dashboard is served from `/`, so its double-submit CSRF token must be
+  // visible to that document. The server still requires the matching session
+  // hash, a same-origin request, and the X-CSRF-Token header.
+  return `${CSRF_COOKIE}=${encodeURIComponent(token)}; Secure; SameSite=Strict; Path=/; Max-Age=${maxAgeSeconds}`;
 }
 
 function clearCsrfCookie() {
+  return `${CSRF_COOKIE}=; Secure; SameSite=Strict; Path=/; Max-Age=0`;
+}
+
+function clearLegacyCsrfCookie() {
   return `${CSRF_COOKIE}=; Secure; SameSite=Strict; Path=/api; Max-Age=0`;
 }
 
@@ -266,14 +273,17 @@ async function handleLogin(request, env) {
     { ok: true, administrator: { displayName: account.display_name, email: account.email, primary: account.is_primary === 1 }, expiresAt },
     200,
     {},
-    [sessionCookie(token, ttl), csrfCookie(csrf, ttl)]
+    [sessionCookie(token, ttl), clearLegacyCsrfCookie(), csrfCookie(csrf, ttl)]
   );
 }
 
 async function handleSession(request, env) {
   try {
     const session = await authenticate(request, env, false);
-    return response({ ok: true, authenticated: true, administrator: { displayName: session.display_name, email: session.email, primary: session.is_primary === 1 }, expiresAt: session.expires_at });
+    const csrf = parseCookies(request)[CSRF_COOKIE] || "";
+    const remainingSeconds = Math.max(1, Math.floor((new Date(session.expires_at).getTime() - Date.now()) / 1000));
+    const cookies = csrf ? [clearLegacyCsrfCookie(), csrfCookie(csrf, remainingSeconds)] : [];
+    return response({ ok: true, authenticated: true, administrator: { displayName: session.display_name, email: session.email, primary: session.is_primary === 1 }, expiresAt: session.expires_at }, 200, {}, cookies);
   } catch (error) {
     if (error instanceof RequestError && error.status === 401) return response({ ok: true, authenticated: false });
     throw error;
@@ -289,7 +299,7 @@ async function handleLogout(request, env) {
   } catch (error) {
     if (!(error instanceof RequestError && error.status === 401)) throw error;
   }
-  return response({ ok: true }, 200, {}, [clearSessionCookie(), clearCsrfCookie()]);
+  return response({ ok: true }, 200, {}, [clearSessionCookie(), clearCsrfCookie(), clearLegacyCsrfCookie()]);
 }
 
 async function handlePinChange(request, env) {

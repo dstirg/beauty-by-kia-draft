@@ -81,3 +81,11 @@ test("booking and admin forms retain separate Turnstile widget identifiers", () 
   assert.equal(source.includes("getResponse?.()"), false);
   assert.equal(source.includes("reset?.()"), false);
 });
+
+test("dashboard CSRF cookie is readable at the site root and legacy API cookies are cleared", () => {
+  const source = fs.readFileSync("functions/api/[[path]].js", "utf8");
+  assert.match(source, /csrfCookie[\s\S]*?SameSite=Strict; Path=\/; Max-Age=/u);
+  assert.match(source, /clearLegacyCsrfCookie[\s\S]*?SameSite=Strict; Path=\/api; Max-Age=0/u);
+  assert.equal(source.includes("constantTimeEqual(await sha256(headerToken), session.csrf_hash)"), true);
+  assert.equal(source.includes("assertSameOrigin(request)"), true);
+});
