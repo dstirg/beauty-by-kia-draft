@@ -47,6 +47,18 @@ export function declineOutcome(paymentStatus) {
   return { bookingStatus: "declined", refundRequired: paymentStatus === "deposit_paid" };
 }
 
+export function slotStartsForWindow(bufferedStartAt, bufferedEndAt, intervalMinutes = 15) {
+  const start = Date.parse(bufferedStartAt);
+  const end = Date.parse(bufferedEndAt);
+  const step = Number(intervalMinutes) * 60_000;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || !Number.isInteger(step) || step <= 0) {
+    throw new TypeError("A valid appointment window and interval are required.");
+  }
+  const slots = [];
+  for (let cursor = start; cursor < end; cursor += step) slots.push(new Date(cursor).toISOString());
+  return slots;
+}
+
 export function stripeActivationReady(env) {
   return env?.PAYMENTS_ENABLED === "true"
     && env?.PAYMENT_PROVIDER === "stripe"

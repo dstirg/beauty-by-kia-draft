@@ -8,6 +8,7 @@ import {
   declineOutcome,
   depositForDisplayedEstimate,
   paymentEventOutcome,
+  slotStartsForWindow,
   stripeActivationReady
 } from "../functions/_lib/payments.js";
 
@@ -81,13 +82,31 @@ test("duplicate webhook events and duplicate successful deposits are rejected", 
     VALUES ('pay-two','paid','stripe','key-two','pi-two',4000,'succeeded')`).run(), /UNIQUE constraint failed/u);
 });
 
-test("first paid request holds the full buffered slot and prevents double booking", () => {
+test("first paid request locks every segment of the full buffered window", () => {
   const db = database();
   insertBooking(db, "first", "2030-01-02T09:00:00.000Z", "2030-01-02T12:00:00.000Z", "2030-01-02T08:30:00.000Z", "2030-01-02T12:30:00.000Z");
   insertBooking(db, "second", "2030-01-02T10:00:00.000Z", "2030-01-02T11:00:00.000Z", "2030-01-02T09:30:00.000Z", "2030-01-02T11:30:00.000Z");
+  const insertLock = db.prepare("INSERT INTO booking_slot_locks (slot_start_at,booking_id) VALUES (?,?)");
+  const firstSlots = slotStartsForWindow("2030-01-02T08:30:00.000Z", "2030-01-02T12:30:00.000Z");
+  const secondSlots = slotStartsForWindow("2030-01-02T09:30:00.000Z", "2030-01-02T11:30:00.000Z");
+  db.exec("BEGIN IMMEDIATE");
+  for (const slot of firstSlots) insertLock.run(slot, "first");
   db.prepare("UPDATE bookings SET payment_status='deposit_paid' WHERE id='first'").run();
-  assert.throws(() => db.prepare("UPDATE bookings SET payment_status='deposit_paid' WHERE id='second'").run(), /no longer available/u);
+  db.exec("COMMIT");
+  assert.equal(firstSlots.length, 16);
+  assert.throws(() => {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const slot of secondSlots) insertLock.run(slot, "second");
+      db.prepare("UPDATE bookings SET payment_status='deposit_paid' WHERE id='second'").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }, /UNIQUE constraint failed/u);
   assert.equal(db.prepare("SELECT payment_status FROM bookings WHERE id='second'").get().payment_status, "deposit_not_requested");
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM booking_slot_locks WHERE booking_id='second'").get().count, 0);
 });
 
 test("Stripe and SMS remain disabled until every credential is connected", () => {

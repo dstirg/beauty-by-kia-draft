@@ -26,6 +26,7 @@ The displayed estimate is not the final service total. Kia must approve the fina
 - `payment_transactions` stores provider IDs, amounts, statuses, receipt URLs, failure codes, and timestamps.
 - `payment_refunds` stores refund IDs, amounts, statuses, reason codes, and timestamps.
 - `payment_webhook_events` stores a unique provider event ID, event type, payload hash, and processing result. It does not store the raw webhook payload.
+- `booking_slot_locks` reserves every 15-minute segment of the full appointment and buffer window in the same D1 batch as a verified payment update.
 - Unique database constraints reject duplicate webhook events and multiple successful deposit records for one booking.
 
 ## Owner-only connection steps for tomorrow

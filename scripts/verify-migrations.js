@@ -16,7 +16,7 @@ const required = [
   "booking_price_snapshots", "booking_status_history", "policy_versions", "policy_acceptances",
   "admin_accounts", "admin_sessions", "login_attempts", "audit_logs", "gallery_images",
   "private_upload_metadata", "application_settings", "communication_outbox", "payment_status_history",
-  "payment_transactions", "payment_refunds", "payment_webhook_events"
+  "payment_transactions", "payment_refunds", "payment_webhook_events", "booking_slot_locks"
 ];
 const tables = new Set(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name));
 const missing = required.filter(name => !tables.has(name));
@@ -39,6 +39,10 @@ for (const column of ["provider_payment_intent_id", "provider_charge_id", "recei
 const refundColumns = new Set(database.prepare("PRAGMA table_info(payment_refunds)").all().map(row => row.name));
 for (const column of ["provider_refund_id", "amount_cents", "status"]) {
   if (!refundColumns.has(column)) throw new Error(`Missing refund foundation column: ${column}`);
+}
+const slotLockColumns = new Set(database.prepare("PRAGMA table_info(booking_slot_locks)").all().map(row => row.name));
+for (const column of ["slot_start_at", "booking_id", "lock_reason"]) {
+  if (!slotLockColumns.has(column)) throw new Error(`Missing paid-request slot lock column: ${column}`);
 }
 
 console.log(`Verified D1-compatible migration with ${required.length} required tables.`);
