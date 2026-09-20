@@ -68,6 +68,7 @@ Required encrypted secrets:
 - `INITIAL_ADMIN_PIN`
 - `SESSION_SECRET`
 - `TURNSTILE_SECRET_KEY`
+- `ADMIN_RECOVERY_TOKEN` only while performing an owner-authorized PIN reset
 
 Required non-secret environment variables:
 
@@ -88,6 +89,8 @@ The application uses same-origin `/api`; no production API base URL is required.
 Enter the initial administrator email and temporary PIN only through Cloudflare’s encrypted secret controls. The PIN must be entered as a string exactly as provided by the owner; never convert it to a number.
 
 Generate `SESSION_SECRET` locally with a cryptographically secure password generator. Do not reuse a password or the administrator PIN.
+
+Do not leave `ADMIN_RECOVERY_TOKEN` configured during normal operation. The emergency procedure in `SECURITY_AND_OPERATIONS.md` requires a new random value of at least 32 characters, uses it once, and removes it immediately.
 
 ## 6. Apply migration and complete one-time setup
 

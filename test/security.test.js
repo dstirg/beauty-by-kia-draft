@@ -89,3 +89,13 @@ test("dashboard CSRF cookie is readable at the site root and legacy API cookies 
   assert.equal(source.includes("constantTimeEqual(await sha256(headerToken), session.csrf_hash)"), true);
   assert.equal(source.includes("assertSameOrigin(request)"), true);
 });
+
+test("owner PIN recovery resets rather than reveals credentials", () => {
+  const source = fs.readFileSync("functions/api/[[path]].js", "utf8");
+  for (const marker of ["ADMIN_RECOVERY_TOKEN", "admin_recovery_uses", "owner_pin_recovery", "allSessionsRevoked", "admin/security/recover"]) {
+    assert.equal(source.includes(marker), true, `missing ${marker}`);
+  }
+  assert.match(source, /UPDATE admin_sessions SET revoked_at=\?/u);
+  assert.equal(source.includes('env.SESSION_SECRET.length < 32'), true);
+  assert.equal(source.includes("current PIN is"), false);
+});

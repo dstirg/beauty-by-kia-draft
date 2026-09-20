@@ -105,5 +105,6 @@ test("manual deposit, SMS consent, and 90-day photo retention foundations are sa
   assert.equal(tables.has("communication_outbox"), true);
   assert.equal(tables.has("payment_status_history"), true);
   const bookingColumns = new Set(db.prepare("PRAGMA table_info(bookings)").all().map(row => row.name));
-  for (const column of ["sms_consent_at", "deposit_method", "deposit_requested_at", "deposit_received_at"]) assert.equal(bookingColumns.has(column), true);
+  for (const column of ["sms_consent_at", "deposit_method", "deposit_requested_at", "deposit_received_at", "client_intake_json"]) assert.equal(bookingColumns.has(column), true);
+  assert.equal(tables.has("admin_recovery_uses"), true);
 });

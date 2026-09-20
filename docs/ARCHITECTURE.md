@@ -53,6 +53,7 @@ Public and setup routes:
 - `POST /api/bookings`
 - `GET /api/gallery/:id/content`
 - `POST /api/uploads/private`
+- `POST /api/admin/security/recover` (owner-controlled one-use secret; not linked in the browser interface)
 
 Authenticated administrator routes:
 

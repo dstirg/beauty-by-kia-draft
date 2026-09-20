@@ -13,12 +13,14 @@ test("text messaging requires consent and remains inactive without a provider", 
   assert.equal(client.includes("no texts will be sent until a texting provider is selected"), true);
 });
 
-test("manual deposits require Kia verification and do not activate Stripe", () => {
+test("manual deposits require Kia verification and use only Cash App or Zelle", () => {
   assert.equal(worker.includes("handleBookingDeposit"), true);
   assert.equal(worker.includes('paymentStatus === "deposit_paid" && !method'), true);
   assert.equal(worker.includes("Deposit received and verified by Kia."), true);
+  assert.equal(worker.includes('Object.freeze(["cash_app", "zelle"])'), true);
   assert.equal(client.includes("Mark deposit paid"), true);
-  assert.equal(client.includes("Stripe can be added later but is not active."), true);
+  assert.equal(client.includes("After Kia reviews and approves your request, you will receive Cash App or Zelle deposit instructions. Your appointment is not confirmed until Kia verifies your deposit."), true);
+  assert.equal(client.includes("Stripe"), false);
 });
 
 test("private upload retention cleanup removes R2 objects and metadata after expiry", () => {
@@ -26,4 +28,20 @@ test("private upload retention cleanup removes R2 objects and metadata after exp
   assert.equal(worker.includes("retention_delete_after <= ?"), true);
   assert.equal(worker.includes("env.PRIVATE_UPLOADS.delete(upload.object_key)"), true);
   assert.equal(client.includes('name="photoRetentionDays"'), true);
+});
+
+test("booking API persists structured intake and enforces service photo requirements", () => {
+  assert.equal(worker.includes("normalizeCustomerIntake(client, service.questionnaire_type)"), true);
+  assert.equal(worker.includes("client_intake_json"), true);
+  assert.equal(worker.includes("missingRequiredUploadTypes(requiredUploadTypes, uploadTypes)"), true);
+  assert.equal(worker.includes('"required_photo_missing"'), true);
+  assert.equal(worker.includes("bookingAddOns: bookingAddOns.results"), true);
+  assert.equal(client.includes("payload.bookingAddOns"), true);
+});
+
+test("consultation approval recalculates a deposit from the final approved price", () => {
+  assert.equal(worker.includes('booking.price_type_snapshot === "consultation"'), true);
+  assert.equal(worker.includes("depositForDisplayedEstimate(finalTotal, depositRules.results)"), true);
+  assert.match(worker, /UPDATE bookings SET status=\?, payment_status=\?, deposit_cents=\?/u);
+  assert.equal(client.includes("Approve price &amp; request deposit"), true);
 });

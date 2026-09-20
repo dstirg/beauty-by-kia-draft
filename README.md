@@ -7,12 +7,14 @@ This repository contains the review-only Beauty by Kia booking portal. The appli
 The approved 30-service catalog, 10 add-ons, prices, deposit tiers, policies, and disabled Grand Opening Special are preserved. The Cloudflare deployment foundation adds:
 
 - Cloudflare Pages Functions for one-time administrator setup and server-side authentication.
+- Structured storage for every customer intake answer, including service-specific press-on and wedding details.
 - D1 as the production source of truth for services, prices, bookings, availability, policies, settings, sessions, and audit history.
 - Separate R2 bindings for the public service gallery and private customer uploads.
 - Owner-approved hours (Tuesday–Friday 6–9 p.m.; Saturday 8 a.m.–6 p.m.), a two-appointment daily limit, and Sunday requests with a $50 surcharge.
 - A consent-backed SMS outbox ready for a future approved texting provider; no texting provider is active yet.
 - Approved 90-day private-photo retention with authenticated cleanup.
 - Turnstile verification, login throttling, temporary lockout, secure cookies, session expiration, logout revocation, and PIN changes.
+- Owner-controlled, one-use PIN recovery that resets the credential, revokes sessions, and records a redacted audit event.
 - Atomic first-approved-wins booking approval with full-duration and buffer overlap protection.
 - Immutable original booking price snapshots and permanent status history.
 
@@ -29,6 +31,7 @@ Production configuration disables the browser-storage fallback. Local storage re
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Booking request data map](docs/BOOKING_DATA_MAP.md)
 - [Cloudflare owner setup](docs/CLOUDFLARE_SETUP.md)
 - [Security, recovery, communications, and backups](docs/SECURITY_AND_OPERATIONS.md)
 

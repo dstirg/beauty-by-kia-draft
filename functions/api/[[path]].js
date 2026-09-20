@@ -23,6 +23,8 @@ import {
   SLOT_BLOCKING_STATUSES
 } from "../_lib/booking.js";
 import { validateAndNormalizeImage } from "../_lib/images.js";
+import { depositForDisplayedEstimate } from "../_lib/payments.js";
+import { missingRequiredUploadTypes, normalizeCustomerIntake } from "../_lib/intake.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 const CSRF_COOKIE = "bbk_csrf";
@@ -31,7 +33,7 @@ const AUTH_WINDOW_MINUTES = 15;
 const LOCKOUT_MINUTES = 15;
 const PRIVATE_UPLOAD_RETENTION_DAYS = 90;
 const PRIVATE_UPLOAD_TYPES = Object.freeze(["current_look", "inspiration"]);
-const MANUAL_DEPOSIT_METHODS = Object.freeze(["cash_app", "zelle", "cash", "waived", "other"]);
+const MANUAL_DEPOSIT_METHODS = Object.freeze(["cash_app", "zelle"]);
 const DUMMY_SALT = "bm90LWEtc2VjcmV0LXNhbHQ";
 
 function response(payload, status = 200, extraHeaders = {}, cookies = []) {
@@ -323,6 +325,50 @@ async function handlePinChange(request, env) {
   return response({ ok: true, message: "PIN changed successfully." });
 }
 
+async function handlePinRecovery(request, env) {
+  requireBindings(env, ["DB"]);
+  if (typeof env.SESSION_SECRET !== "string" || env.SESSION_SECRET.length < 32) {
+    throw new RequestError("PIN recovery is not configured safely.", 503, "pin_recovery_not_configured");
+  }
+  const body = await readJson(request);
+  const email = normalizeEmail(body.email);
+  const newPin = body.newPin;
+  const recoveryToken = typeof body.recoveryToken === "string" ? body.recoveryToken : "";
+  const configuredToken = typeof env.ADMIN_RECOVERY_TOKEN === "string" ? env.ADMIN_RECOVERY_TOKEN : "";
+  const tokenHash = await sha256(recoveryToken);
+  const expectedHash = await sha256(configuredToken || "recovery-not-configured");
+  const recoveryInputValid = configuredToken.length >= 32
+    && recoveryToken.length <= 512
+    && constantTimeEqual(tokenHash, expectedHash)
+    && isValidEmail(email)
+    && isValidPin(newPin)
+    && newPin === body.confirmNewPin;
+  if (!recoveryInputValid) throw new RequestError("PIN recovery information is not valid.", 403, "pin_recovery_rejected");
+
+  const alreadyUsed = await env.DB.prepare("SELECT recovery_token_hash FROM admin_recovery_uses WHERE recovery_token_hash = ?").bind(tokenHash).first();
+  if (alreadyUsed) throw new RequestError("PIN recovery information is not valid.", 403, "pin_recovery_rejected");
+  const account = await env.DB.prepare("SELECT * FROM admin_accounts WHERE email = ? COLLATE NOCASE AND is_primary = 1 AND is_active = 1").bind(email).first();
+  if (!account) throw new RequestError("PIN recovery information is not valid.", 403, "pin_recovery_rejected");
+
+  const credential = await hashPin(newPin, null, PBKDF2_ITERATIONS, env.SESSION_SECRET);
+  const changedAt = nowIso();
+  const ipHash = await clientFingerprint(request, env);
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE admin_accounts SET pin_salt=?, pin_hash=?, pin_iterations=?, pin_changed_at=?,
+      failed_login_count=0, locked_until=NULL, updated_at=? WHERE id=?`)
+      .bind(credential.salt, credential.hash, credential.iterations, changedAt, changedAt, account.id),
+    env.DB.prepare("UPDATE admin_sessions SET revoked_at=? WHERE admin_account_id=? AND revoked_at IS NULL")
+      .bind(changedAt, account.id),
+    env.DB.prepare("INSERT INTO admin_recovery_uses (recovery_token_hash, admin_account_id, used_at, ip_hash) VALUES (?, ?, ?, ?)")
+      .bind(tokenHash, account.id, changedAt, ipHash),
+    env.DB.prepare(`INSERT INTO audit_logs
+      (id, admin_account_id, action, entity_type, entity_id, details_json, ip_hash)
+      VALUES (?, ?, 'owner_pin_recovery', 'admin_account', ?, ?, ?)`)
+      .bind(uuid(), account.id, account.id, JSON.stringify({ allSessionsRevoked: true }), ipHash)
+  ]);
+  return response({ ok: true, message: "Administrator access was reset. All existing sessions were signed out." });
+}
+
 async function catalogRows(env) {
   const [servicesResult, addOnsResult, linksResult, depositsResult, promotionsResult, promotionServicesResult, availabilityResult, buffersResult, policy, galleryResult, settingsResult] = await Promise.all([
     env.DB.prepare(`SELECT s.*, p.minimum_price_cents, p.maximum_price_cents, p.starting_price_cents, d.duration_minutes
@@ -370,7 +416,8 @@ async function handleCreateBooking(request, env) {
   const body = await readJson(request);
   if (body.turnstileToken && !await verifyTurnstile(request, env, body.turnstileToken, "booking_request")) throw new RequestError("Request verification failed.", 403);
   const serviceId = requiredString(body.serviceId, "Service", 100);
-  const service = await env.DB.prepare(`SELECT s.id, s.name, s.price_type, s.is_active, p.minimum_price_cents, p.maximum_price_cents,
+  const service = await env.DB.prepare(`SELECT s.id, s.name, s.price_type, s.is_active, s.questionnaire_type, s.required_upload_types,
+      p.minimum_price_cents, p.maximum_price_cents,
       d.duration_minutes FROM services s JOIN service_prices p ON p.service_id = s.id AND p.effective_to IS NULL
       JOIN service_durations d ON d.service_id = s.id AND d.effective_to IS NULL
       WHERE s.id = ? AND s.archived_at IS NULL`).bind(serviceId).first();
@@ -391,6 +438,13 @@ async function handleCreateBooking(request, env) {
   if (!isValidEmail(clientEmail)) throw new RequestError("A valid client email is required.");
   const clientPhone = requiredString(client.phone, "Client phone", 40);
   const preferredContact = String(client.preferredContact || "email").trim().toLowerCase().slice(0, 20);
+  if (!["email", "text", "call"].includes(preferredContact)) throw new RequestError("Select a valid preferred contact method.", 422, "preferred_contact_invalid");
+  let clientIntake;
+  try {
+    clientIntake = normalizeCustomerIntake(client, service.questionnaire_type);
+  } catch (error) {
+    throw new RequestError(error.message, 422, "customer_answers_invalid");
+  }
   const smsConsentAt = body.smsConsent === true ? nowIso() : null;
   if (preferredContact === "text" && !smsConsentAt) throw new RequestError("Text-message consent is required when text is selected.");
   const requestedStart = new Date(body.requestedStartAt);
@@ -417,9 +471,9 @@ async function handleCreateBooking(request, env) {
   };
   const statements = [
     env.DB.prepare(`INSERT INTO bookings (id, reference, client_name, client_email, client_phone, preferred_contact, customer_notes,
-      requested_start_at, estimated_total_cents, deposit_cents, remaining_balance_cents, sms_consent_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(bookingId, reference, clientName, clientEmail, clientPhone, preferredContact, String(client.notes || "").slice(0, 4000), requestedStart.toISOString(), estimatedTotal, deposit, Math.max(0, estimatedTotal - deposit), smsConsentAt),
+      client_intake_json, requested_start_at, estimated_total_cents, deposit_cents, remaining_balance_cents, sms_consent_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(bookingId, reference, clientName, clientEmail, clientPhone, preferredContact, clientIntake.notes, JSON.stringify(clientIntake), requestedStart.toISOString(), estimatedTotal, deposit, Math.max(0, estimatedTotal - deposit), smsConsentAt),
     env.DB.prepare(`INSERT INTO booking_services (booking_id, service_id, service_name_snapshot, price_type_snapshot,
       minimum_price_cents_snapshot, maximum_price_cents_snapshot, duration_minutes_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .bind(bookingId, service.id, service.name, service.price_type, servicePrice, service.maximum_price_cents, service.duration_minutes),
@@ -443,6 +497,7 @@ async function handleCreateBooking(request, env) {
   }
   const uploadIds = Array.isArray(body.privateUploadIds) ? [...new Set(body.privateUploadIds.filter(value => typeof value === "string"))] : [];
   if (uploadIds.length > 2) throw new RequestError("A maximum of two appointment photos is allowed.");
+  let uploadTypes = [];
   if (uploadIds.length) {
     const claimToken = requiredString(body.privateUploadClaimToken, "Upload authorization", 256);
     const claimHash = await sha256(claimToken);
@@ -451,12 +506,23 @@ async function handleCreateBooking(request, env) {
       WHERE id IN (${placeholders}) AND claim_token_hash=? AND booking_id IS NULL AND deleted_at IS NULL`)
       .bind(...uploadIds, claimHash).all();
     if (uploads.results.length !== uploadIds.length) throw new RequestError("One or more appointment photos could not be authorized.", 403);
-    const uploadTypes = uploads.results.map(item => item.upload_type);
+    uploadTypes = uploads.results.map(item => item.upload_type);
     if (new Set(uploadTypes).size !== uploadTypes.length || uploadTypes.some(type => !PRIVATE_UPLOAD_TYPES.includes(type))) {
       throw new RequestError("Only one current-look photo and one inspiration photo are allowed.");
     }
   } else if (!body.turnstileToken) {
     throw new RequestError("Request verification failed.", 403);
+  }
+  const requiredUploadTypes = parseJson(service.required_upload_types, null);
+  let missingUploadTypes;
+  try {
+    missingUploadTypes = missingRequiredUploadTypes(requiredUploadTypes, uploadTypes);
+  } catch (error) {
+    throw new RequestError(error.message, 503, "service_photo_configuration_invalid");
+  }
+  if (missingUploadTypes.length) {
+    const labels = missingUploadTypes.map(type => type === "current_look" ? "a current-hair photo" : "an inspiration photo");
+    throw new RequestError(`This service requires ${labels.join(" and ")} before you can submit your request.`, 422, "required_photo_missing");
   }
   for (const uploadId of uploadIds) {
     statements.push(env.DB.prepare("UPDATE private_upload_metadata SET booking_id = ?, claim_token_hash=NULL, updated_at = ? WHERE id = ? AND booking_id IS NULL AND deleted_at IS NULL")
@@ -468,10 +534,14 @@ async function handleCreateBooking(request, env) {
 
 async function loadAdminState(env) {
   const catalog = await catalogRows(env);
-  const [bookings, blockedDates, calendarBlocks, auditLogs, galleryImages, privateUploads, adminSettings, communicationOutbox] = await Promise.all([
-    env.DB.prepare(`SELECT b.*, bs.service_name_snapshot AS service_name, bs.duration_minutes_snapshot
+  const [bookings, bookingAddOns, blockedDates, calendarBlocks, auditLogs, galleryImages, privateUploads, adminSettings, communicationOutbox] = await Promise.all([
+    env.DB.prepare(`SELECT b.*, bs.service_name_snapshot AS service_name, bs.duration_minutes_snapshot,
+      bs.price_type_snapshot
       FROM bookings b LEFT JOIN booking_services bs ON bs.booking_id = b.id
       WHERE b.archived_at IS NULL ORDER BY b.created_at DESC LIMIT 500`).all(),
+    env.DB.prepare(`SELECT booking_id, add_on_id, add_on_name_snapshot, price_type_snapshot,
+      minimum_price_cents_snapshot, maximum_price_cents_snapshot
+      FROM booking_add_ons ORDER BY booking_id, add_on_name_snapshot`).all(),
     env.DB.prepare("SELECT * FROM blocked_dates WHERE archived_at IS NULL ORDER BY blocked_date").all(),
     env.DB.prepare("SELECT * FROM calendar_blocks WHERE archived_at IS NULL ORDER BY starts_at").all(),
     env.DB.prepare("SELECT action, entity_type, entity_id, details_json, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 200").all(),
@@ -482,7 +552,7 @@ async function loadAdminState(env) {
     env.DB.prepare(`SELECT id, booking_id, channel, message_type, status, scheduled_for, sent_at, created_at
       FROM communication_outbox ORDER BY created_at DESC LIMIT 200`).all()
   ]);
-  return { ...catalog, settings: { ...catalog.settings, ...Object.fromEntries(adminSettings.results.map(item => [item.setting_key, item.setting_value])) }, bookings: bookings.results, blockedDates: blockedDates.results, calendarBlocks: calendarBlocks.results, gallery: galleryImages.results.map(image => ({ ...image, url: `/api/gallery/${image.id}/content` })), privateUploads: privateUploads.results.map(upload => ({ ...upload, url: `/api/admin/uploads/${upload.id}/content` })), communicationOutbox: communicationOutbox.results, auditLogs: auditLogs.results.map(row => ({ ...row, details: parseJson(row.details_json, {}) })) };
+  return { ...catalog, settings: { ...catalog.settings, ...Object.fromEntries(adminSettings.results.map(item => [item.setting_key, item.setting_value])) }, bookings: bookings.results, bookingAddOns: bookingAddOns.results, blockedDates: blockedDates.results, calendarBlocks: calendarBlocks.results, gallery: galleryImages.results.map(image => ({ ...image, url: `/api/gallery/${image.id}/content` })), privateUploads: privateUploads.results.map(upload => ({ ...upload, url: `/api/admin/uploads/${upload.id}/content` })), communicationOutbox: communicationOutbox.results, auditLogs: auditLogs.results.map(row => ({ ...row, details: parseJson(row.details_json, {}) })) };
 }
 
 async function purgeExpiredPrivateUploads(request, env, adminId) {
@@ -666,7 +736,7 @@ async function failApproval(env, request, session, booking, reason) {
 async function handleApproveBooking(request, env, bookingId) {
   const session = await authenticate(request, env, true);
   const body = await readJson(request);
-  const booking = await env.DB.prepare(`SELECT b.*, bs.duration_minutes_snapshot, bs.service_id FROM bookings b
+  const booking = await env.DB.prepare(`SELECT b.*, bs.duration_minutes_snapshot, bs.service_id, bs.price_type_snapshot FROM bookings b
     JOIN booking_services bs ON bs.booking_id=b.id WHERE b.id=?`).bind(bookingId).first();
   if (!booking) throw new RequestError("Booking not found.", 404);
   if (!new Set(["pending_review", "reschedule_requested", "time_unavailable"]).has(booking.status)) throw new RequestError("This booking cannot be approved from its current status.", 409);
@@ -692,8 +762,23 @@ async function handleApproveBooking(request, env, bookingId) {
   if (!service || service.is_active !== 1 || service.archived_at) return failApproval(env, request, session, booking, "service unavailable");
   const dayStart = `${local.date}T00:00:00.000Z`;
   const dayEnd = `${local.date}T23:59:59.999Z`;
-  const finalTotal = body.approvedFinalTotalCents == null ? booking.estimated_total_cents : Math.max(0, Math.round(Number(body.approvedFinalTotalCents)));
-  const depositRequired = Math.max(0, Number(booking.deposit_cents || 0));
+  const proposedFinalTotal = body.approvedFinalTotalCents == null ? Number(booking.estimated_total_cents) : Number(body.approvedFinalTotalCents);
+  if (!Number.isFinite(proposedFinalTotal) || proposedFinalTotal < 0 || proposedFinalTotal > 10_000_000) {
+    throw new RequestError("Enter a valid final service price.", 422, "final_price_invalid");
+  }
+  const finalTotal = Math.round(proposedFinalTotal);
+  let depositRequired = Math.max(0, Number(booking.deposit_cents || 0));
+  if (booking.price_type_snapshot === "consultation") {
+    if (body.approvedFinalTotalCents == null || finalTotal <= 0) {
+      throw new RequestError("Enter Kia's approved final price before approving this consultation.", 422, "consultation_price_required");
+    }
+    const depositRules = await env.DB.prepare("SELECT * FROM deposit_rules WHERE is_active=1 ORDER BY minimum_total_cents").all();
+    try {
+      depositRequired = depositForDisplayedEstimate(finalTotal, depositRules.results);
+    } catch {
+      throw new RequestError("The approved price does not match an active deposit tier.", 503, "deposit_tier_unavailable");
+    }
+  }
   const nextStatus = depositRequired > 0 ? "awaiting_deposit" : "confirmed";
   const nextPaymentStatus = depositRequired > 0 ? "deposit_requested" : "deposit_not_requested";
   const settingsResult = await env.DB.prepare(`SELECT setting_key, setting_value FROM application_settings
@@ -711,7 +796,7 @@ async function handleApproveBooking(request, env, bookingId) {
     : `Beauty by Kia approved request ${booking.reference}. Your appointment is confirmed.`;
   const customerMessage = String(body.customerMessage || defaultCustomerMessage).slice(0, 4000);
   const updatedAt = nowIso();
-  const update = await env.DB.prepare(`UPDATE bookings SET status=?, payment_status=?,
+  const update = await env.DB.prepare(`UPDATE bookings SET status=?, payment_status=?, deposit_cents=?,
       appointment_start_at=?, appointment_end_at=?, buffered_start_at=?, buffered_end_at=?, approved_final_total_cents=?,
       remaining_balance_cents=?, approved_at=?, deposit_requested_at=?, private_admin_note=?, customer_message=?, updated_at=?
     WHERE id=? AND status IN ('pending_review','reschedule_requested','time_unavailable')
@@ -719,7 +804,7 @@ async function handleApproveBooking(request, env, bookingId) {
         AND existing.archived_at IS NULL AND existing.buffered_start_at < ? AND existing.buffered_end_at > ?)
       AND (SELECT COUNT(*) FROM bookings day_booking WHERE day_booking.id<>? AND day_booking.status IN ('awaiting_deposit','confirmed')
         AND day_booking.appointment_start_at >= ? AND day_booking.appointment_start_at <= ?) < ?`)
-    .bind(nextStatus, nextPaymentStatus, window.appointmentStartAt, window.appointmentEndAt, window.bufferedStartAt, window.bufferedEndAt, finalTotal,
+    .bind(nextStatus, nextPaymentStatus, depositRequired, window.appointmentStartAt, window.appointmentEndAt, window.bufferedStartAt, window.bufferedEndAt, finalTotal,
       Math.max(0, finalTotal - depositRequired), updatedAt, depositRequired > 0 ? updatedAt : null, String(body.privateNote || "").slice(0, 4000), customerMessage, updatedAt, booking.id,
       booking.id, window.bufferedEndAt, window.bufferedStartAt, booking.id, dayStart, dayEnd, buffers.maximum_appointments_per_day).run();
   if (!update.meta?.changes) return failApproval(env, request, session, booking, "concurrent conflict or daily limit");
@@ -953,6 +1038,7 @@ async function routeRequest(context) {
   if (method === "POST" && path === "auth/login") return handleLogin(request, env);
   if (method === "GET" && path === "auth/session") return handleSession(request, env);
   if (method === "POST" && path === "auth/logout") return handleLogout(request, env);
+  if (method === "POST" && path === "admin/security/recover") return handlePinRecovery(request, env);
   if (method === "POST" && path === "admin/security/pin") return handlePinChange(request, env);
   if (method === "GET" && path === "catalog") return handleCatalog(env);
   if (method === "POST" && path === "bookings") return handleCreateBooking(request, env);

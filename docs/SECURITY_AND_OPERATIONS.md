@@ -12,16 +12,18 @@ PIN changes require the current PIN, a new 6–12 digit PIN, and confirmation. A
 
 ## Forgotten-PIN recovery
 
-No email or text provider is active, and the application never reveals or emails a PIN. Recovery is an owner-controlled process:
+No email or text provider is active, and the application never reveals or emails a PIN. Recovery resets the PIN through an owner-controlled, one-use Cloudflare secret:
 
 1. Verify Brookia’s identity outside the application using the business owner’s established procedure.
 2. Export and protect a D1 backup.
-3. Place a one-use recovery value in a Cloudflare encrypted secret.
-4. Use a separately reviewed recovery Function or owner maintenance command to generate a new salt/hash and revoke all sessions.
-5. Remove the recovery secret immediately.
-6. Record only `owner_pin_recovery` and the administrator ID in the audit log—never the replacement PIN or secret.
+3. Generate a new cryptographically random value of at least 32 characters and place it in the Cloudflare encrypted secret `ADMIN_RECOVERY_TOKEN`. Never reuse a prior value.
+4. Create an owner-controlled JSON file outside the repository containing `email`, `newPin`, `confirmNewPin`, and `recoveryToken`. Restrict the file to the owner and do not paste it into chat, screenshots, logs, or shell history.
+5. Submit the file over HTTPS with `curl --fail-with-body --request POST "https://PRODUCTION_HOST/api/admin/security/recover" --header "Content-Type: application/json" --data-binary @OWNER_CONTROLLED_RECOVERY_FILE`.
+6. Confirm the response reports that access was reset. The endpoint stores only the recovery-token hash, creates a new salted/peppered PIN hash, clears the lockout, and revokes every active administrator session.
+7. Delete the local recovery file and remove `ADMIN_RECOVERY_TOKEN` from Cloudflare immediately. The same token cannot be used twice even if it is accidentally left configured.
+8. Confirm a new login works and the audit log contains `owner_pin_recovery`. The audit record must never contain the replacement PIN or recovery token.
 
-The recovery mutation is intentionally not exposed as a public endpoint in this draft. It requires separate owner approval and security review before launch.
+The recovery endpoint is not linked from the public or administrator interface. Possession of the Cloudflare account, a newly created encrypted recovery secret, Brookia’s primary administrator email, and the new PIN are all required. The existing PIN is never returned or stored in plaintext.
 
 ## Audit events
 

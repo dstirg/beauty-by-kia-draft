@@ -109,13 +109,14 @@ test("first paid request locks every segment of the full buffered window", () =>
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM booking_slot_locks WHERE booking_id='second'").get().count, 0);
 });
 
-test("Stripe and SMS remain disabled until every credential is connected", () => {
+test("automatic payments remain disabled and launch wording uses manual deposits", () => {
   assert.equal(stripeActivationReady({ PAYMENTS_ENABLED: "false" }), false);
   assert.equal(stripeActivationReady({ PAYMENTS_ENABLED: "true", PAYMENT_PROVIDER: "stripe" }), false);
   const wrangler = fs.readFileSync("wrangler.toml", "utf8");
   const client = fs.readFileSync("index.html", "utf8");
   assert.match(wrangler, /PAYMENTS_ENABLED\s*=\s*"false"/u);
-  assert.match(client, /Stripe and SMS remain disabled until their accounts are connected\./u);
+  assert.match(client, /After Kia reviews and approves your request, you will receive Cash App or Zelle deposit instructions\./u);
+  assert.doesNotMatch(client, /Stripe/u);
   assert.match(client, /position:\s*sticky;/u);
   assert.match(client, /Reference number/u);
   assert.match(client, /Current status/u);
