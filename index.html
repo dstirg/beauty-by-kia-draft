@@ -1424,7 +1424,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       const promo = PRICING.promotionIsActive(state.promotion) ? state.promotion.prices[service.id] : undefined;
       return `<button class="booking-service-option ${selected ? "selected" : ""}" data-book-service="${service.id}"><span><h3>${escapeHtml(service.name)}</h3><p>${escapeHtml(service.description)}</p></span><span class="option-price">${promo !== undefined ? money.format(promo) : PRICING.formatPrice(service, value => money.format(value))}</span></button>`;
     }).join("") || '<div class="empty-state">No services are available in this category.</div>';
-    return `<div class="booking-panel-header"><div><span class="eyebrow">Step 1</span><h2>${heading}</h2><p>Prices are set by Kia and cannot be entered or negotiated by customers.</p></div>${categoryControl}</div>${PRICING.promotionIsActive(state.promotion) ? `<div class="notice notice-success"><strong>${escapeHtml(state.promotion.name)}</strong><br>${escapeHtml(state.promotion.banner)}</div>` : ""}<div class="booking-service-list">${serviceOptions}</div><div class="booking-actions"><span></span><button id="booking-next-service" class="button button-primary" ${booking.serviceId ? "" : "disabled"}>Continue</button></div>`;
+    return `<div class="booking-panel-header"><div><span class="eyebrow">Step 1</span><h2>${heading}</h2><p>Select a service to continue directly to your appointment details.</p></div>${categoryControl}</div>${PRICING.promotionIsActive(state.promotion) ? `<div class="notice notice-success"><strong>${escapeHtml(state.promotion.name)}</strong><br>${escapeHtml(state.promotion.banner)}</div>` : ""}<div class="booking-service-list">${serviceOptions}</div>`;
   }
 
   function renderBookingDetailsStep() {
@@ -1557,14 +1557,13 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       booking.serviceId = button.dataset.bookService;
       booking.date = "";
       booking.time = "";
-      renderBooking();
+      setBookingStep(2);
     }));
     document.getElementById("show-all-services")?.addEventListener("click", () => {
       booking.category = "";
       booking.serviceId = "";
       renderBooking();
     });
-    document.getElementById("booking-next-service")?.addEventListener("click", () => setBookingStep(2));
     document.getElementById("change-service")?.addEventListener("click", () => setBookingStep(1));
     document.getElementById("booking-back-details")?.addEventListener("click", () => setBookingStep(1));
     document.getElementById("booking-details-form")?.addEventListener("submit", event => {
