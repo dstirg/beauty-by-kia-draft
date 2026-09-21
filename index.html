@@ -1379,21 +1379,33 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
   }
 
   function removeTurnstileWidget(widgetId) {
-    if (widgetId === null || !window.turnstile) return;
-    try { window.turnstile.remove(widgetId); } catch { /* The widget may already be gone after a route change. */ }
+    const turnstile = window.turnstile;
+    if (widgetId === null || !turnstile || typeof turnstile.remove !== "function") return;
+    try { turnstile.remove(widgetId); } catch { /* The widget may already be gone after a route change. */ }
   }
 
   function resetTurnstileWidget(widgetId) {
-    if (widgetId === null || !window.turnstile) return;
-    try { window.turnstile.reset(widgetId); } catch { /* A re-render will create a fresh widget. */ }
+    const turnstile = window.turnstile;
+    if (widgetId === null || !turnstile || typeof turnstile.reset !== "function") return;
+    try { turnstile.reset(widgetId); } catch { /* A re-render will create a fresh widget. */ }
   }
 
   function renderBookingTurnstile(attempt = 0) {
     const container = document.getElementById("booking-turnstile");
     if (!container || booking.step !== 4 || container.dataset.rendered === "true") return;
     if (window.turnstile && turnstileSiteKey) {
-      bookingTurnstileWidgetId = window.turnstile.render(container, { sitekey: turnstileSiteKey, theme: "auto", action: "booking_request" });
-      container.dataset.rendered = "true";
+      try {
+        bookingTurnstileWidgetId = window.turnstile.render(container, {
+          sitekey: turnstileSiteKey,
+          theme: "auto",
+          action: "booking_request",
+          "error-callback": () => { bookingTurnstileWidgetId = null; container.dataset.rendered = ""; container.innerHTML = '<div class="notice notice-warning">Security verification is temporarily unavailable. Please refresh the page and try again.</div>'; }
+        });
+        container.dataset.rendered = "true";
+      } catch {
+        bookingTurnstileWidgetId = null;
+        container.innerHTML = '<div class="notice notice-warning">Security verification is temporarily unavailable. Please refresh the page and try again.</div>';
+      }
     } else if (attempt < 20) {
       window.setTimeout(() => renderBookingTurnstile(attempt + 1), 250);
     } else {
@@ -1863,8 +1875,18 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const container = document.getElementById("admin-turnstile");
     if (!container || container.dataset.rendered === "true") return;
     if (window.turnstile && turnstileSiteKey) {
-      adminTurnstileWidgetId = window.turnstile.render(container, { sitekey: turnstileSiteKey, theme: "auto", action: "admin_login" });
-      container.dataset.rendered = "true";
+      try {
+        adminTurnstileWidgetId = window.turnstile.render(container, {
+          sitekey: turnstileSiteKey,
+          theme: "auto",
+          action: "admin_login",
+          "error-callback": () => { adminTurnstileWidgetId = null; container.dataset.rendered = ""; container.innerHTML = '<div class="notice notice-warning">Security verification is temporarily unavailable. Please refresh the page and try again.</div>'; }
+        });
+        container.dataset.rendered = "true";
+      } catch {
+        adminTurnstileWidgetId = null;
+        container.innerHTML = '<div class="notice notice-warning">Security verification is temporarily unavailable. Please refresh the page and try again.</div>';
+      }
     } else if (attempt < 20) {
       window.setTimeout(() => renderAdminTurnstile(attempt + 1), 250);
     } else {
