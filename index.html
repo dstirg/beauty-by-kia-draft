@@ -1416,8 +1416,26 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
   function renderBookingServiceStep() {
     let services = state.services.filter(service => service.active);
     if (PRICING.promotionIsActive(state.promotion)) services = services.concat([{ id:"svc-promo-mani-pedi", name:"Manicure + Pedicure Combo", category:"Nails", priceType:"fixed", minPrice:70, maxPrice:70, basePrice:70, duration:120, description:"Grand Opening Special promotional bundle.", active:true, applicableAddOnIds:[] }]);
-    if (booking.category) services = services.filter(service => service.category === booking.category);
-    const heading = booking.category ? `Choose your ${escapeHtml(booking.category)} service` : "Choose your service";
+    const categoryDetails = {
+      Braids: { title: "Braids", description: "Braids, loc styles, and protective styles" },
+      Nails: { title: "Nails", description: "Manicures, pedicures, and press-on sets" },
+      Color: { title: "Coloring", description: "Color services and touch-ups" },
+      Weaves: { title: "Weaves & Wigs", description: "Quick weaves, ponytails, and wig services" },
+      Hair: { title: "Natural Hair & Styling", description: "Silk presses, twist-outs, and natural styles" },
+      Makeup: { title: "Makeup & Wedding", description: "Everyday glam, full glam, and wedding packages" }
+    };
+    if (!booking.category) {
+      const categories = [...new Set(services.map(service => service.category).filter(Boolean))];
+      const categoryOptions = categories.map(category => {
+        const detail = categoryDetails[category] || { title: category, description: "View available services" };
+        const count = services.filter(service => service.category === category).length;
+        return `<button type="button" class="home-category-card" data-booking-category="${escapeHtml(category)}"><span class="home-category-initial" aria-hidden="true">${escapeHtml(detail.title.charAt(0))}</span><span><strong>${escapeHtml(detail.title)}</strong><small>${escapeHtml(detail.description)} · ${count} ${count === 1 ? "service" : "services"}</small></span><span class="home-category-arrow" aria-hidden="true">→</span></button>`;
+      }).join("");
+      return `<div class="booking-panel-header"><div><span class="eyebrow">Step 1</span><h2>What would you like to book?</h2><p>Choose a category first, then select the exact service.</p></div></div><div class="home-category-grid">${categoryOptions}</div>`;
+    }
+    services = services.filter(service => service.category === booking.category);
+    const categoryTitle = (categoryDetails[booking.category] || { title: booking.category }).title;
+    const heading = `Choose your ${escapeHtml(categoryTitle)} service`;
     const categoryControl = booking.category ? `<button type="button" id="show-all-services" class="button button-secondary button-small">Choose another category</button>` : "";
     const serviceOptions = services.map(service => {
       const selected = booking.serviceId === service.id;
@@ -1553,6 +1571,11 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
   }
 
   function bindBookingStepEvents() {
+    document.querySelectorAll("[data-booking-category]").forEach(button => button.addEventListener("click", () => {
+      booking.category = button.dataset.bookingCategory;
+      booking.serviceId = "";
+      setBookingStep(1);
+    }));
     document.querySelectorAll("[data-book-service]").forEach(button => button.addEventListener("click", () => {
       booking.serviceId = button.dataset.bookService;
       booking.date = "";
