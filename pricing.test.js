@@ -6,8 +6,8 @@ assert.deepEqual(P.calculate(byName("BBK Basic Glam"), [], { enabled:false }), {
 assert.equal(P.calculate(byName("Silk Press"), [], { enabled:false }).total, 75);
 assert.equal(P.calculate(byName("Silk Press"), P.addOns.filter(a => ["Shampoo","Trim"].includes(a.name)), { enabled:false }).total, 105);
 assert.match(P.formatPrice(byName("Mini Braids")), /Starting at \$180/);
-assert.match(P.formatPrice(byName("BBK Full Bridal Glam — Hair + Makeup for Bride + 4"), value => `$${value.toLocaleString("en-US")}`), /Starting at \$1,195/);
-assert.equal(P.calculate(byName("BBK Full Bridal Glam — Hair + Makeup for Bride + 4"), [], { enabled:false }).deposit, 50);
+assert.match(P.formatPrice(byName("BBK Full Bridal Glam — Hair + Makeup for Bride + 3"), value => `$${value.toLocaleString("en-US")}`), /Starting at \$1,195/);
+assert.equal(P.calculate(byName("BBK Full Bridal Glam — Hair + Makeup for Bride + 3"), [], { enabled:false }).deposit, 50);
 assert.equal(P.calculate(byName("BBK Full Glam"), [], { enabled:false }).total, 150);
 assert.match(P.formatPrice(byName("BBK Glam")), /\$250–\$300/);
 assert.equal(byName("BBK Glam").questionnaire, "makeupParty");

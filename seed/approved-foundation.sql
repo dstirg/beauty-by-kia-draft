@@ -304,7 +304,7 @@ SELECT 'svc-bbk-glam-party', 180
 WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-bbk-glam-party' AND effective_to IS NULL);
 
 INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
-VALUES ('svc-wedding-glam', 'wedding-glam', 'BBK Full Bridal Glam — Hair + Makeup for Bride + 4', 'Makeup', 'A five-person bridal package with hair and makeup for the bride and four additional people. Pricing starts at $1,195 and is reviewed for the look, location, schedule, and trial needs.', 'Hair and makeup for the bride plus four additional people are included. Larger parties, requested services, service complexity, location, and wedding-day timeline may require an adjusted custom quote.', 'starting', 1, 0, 'wedding', '["inspiration"]')
+VALUES ('svc-wedding-glam', 'wedding-glam', 'BBK Full Bridal Glam — Hair + Makeup for Bride + 3', 'Makeup', 'Wedding-day hair and makeup for the bride plus up to three additional people, for a maximum of four people total. Pricing starts at $1,195.', 'Parties larger than 4 require a custom quote and may require an additional beauty professional. Final pricing is reviewed for requested styles, complexity, location, travel, ready-by time, timeline, and staffing needs.', 'starting', 1, 0, 'wedding', '["inspiration"]')
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
 SELECT 'svc-wedding-glam', 119500, NULL, 119500

@@ -455,9 +455,11 @@ async function handleCreateBooking(request, env) {
   const policy = await env.DB.prepare("SELECT id, version_label FROM policy_versions WHERE is_current = 1").first();
   if (!policy) throw new RequestError("Booking policies are not configured.", 503);
   const partySize = Number(clientIntake.partySize || 0);
-  const customQuoteRequired = service.questionnaire_type === "makeupParty" && partySize >= 4;
+  const customQuoteRequired = (service.questionnaire_type === "makeupParty" && partySize >= 4)
+    || (service.questionnaire_type === "wedding" && partySize >= 5);
   const servicePrice = service.questionnaire_type === "makeupParty"
     ? (partySize >= 1 && partySize <= 2 ? 25000 : partySize === 3 ? 30000 : 0)
+    : service.questionnaire_type === "wedding" && customQuoteRequired ? 0
     : Number(service.minimum_price_cents);
   const addOnsTotal = addOns.reduce((sum, addOn) => sum + Number(addOn.minimum_price_cents), 0);
   const estimatedTotal = servicePrice + addOnsTotal;
