@@ -1447,7 +1447,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       }).join("");
       return `<div class="booking-panel-header"><div><span class="eyebrow">Step 1</span><h2>What would you like to book?</h2><p>Choose a category first, then select the exact service.</p></div></div><div class="home-category-grid">${categoryOptions}</div>`;
     }
-    services = services.filter(service => service.category === booking.category);
+    services = services.filter(service => service.category === booking.category).sort((left, right) => Number(left.minPrice) - Number(right.minPrice) || left.name.localeCompare(right.name));
     const categoryTitle = (categoryDetails[booking.category] || { title: booking.category }).title;
     const heading = `Choose your ${escapeHtml(categoryTitle)} service`;
     const categoryControl = booking.category ? `<button type="button" id="show-all-services" class="button button-secondary button-small">Choose another category</button>` : "";
