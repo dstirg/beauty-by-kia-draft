@@ -72,7 +72,7 @@ test("production settings use D1 and disable browser authority and payments", ()
   const settings = Object.fromEntries(db.prepare("SELECT setting_key, setting_value FROM application_settings").all().map(row => [row.setting_key, row.setting_value]));
   assert.equal(settings.local_storage_fallback, "false");
   assert.equal(settings.payments_enabled, "false");
-  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM services").get().count, 30);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM services").get().count, 31);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM add_ons").get().count, 10);
 });
 

@@ -454,10 +454,14 @@ async function handleCreateBooking(request, env) {
   if (body.acceptedPolicies !== true) throw new RequestError("The current policies must be accepted.");
   const policy = await env.DB.prepare("SELECT id, version_label FROM policy_versions WHERE is_current = 1").first();
   if (!policy) throw new RequestError("Booking policies are not configured.", 503);
-  const servicePrice = Number(service.minimum_price_cents);
+  const partySize = Number(clientIntake.partySize || 0);
+  const customQuoteRequired = service.questionnaire_type === "makeupParty" && partySize >= 4;
+  const servicePrice = service.questionnaire_type === "makeupParty"
+    ? (partySize >= 1 && partySize <= 2 ? 25000 : partySize === 3 ? 30000 : 0)
+    : Number(service.minimum_price_cents);
   const addOnsTotal = addOns.reduce((sum, addOn) => sum + Number(addOn.minimum_price_cents), 0);
   const estimatedTotal = servicePrice + addOnsTotal;
-  const depositRule = service.price_type === "consultation" ? null : await env.DB.prepare(
+  const depositRule = service.price_type === "consultation" || customQuoteRequired ? null : await env.DB.prepare(
     "SELECT * FROM deposit_rules WHERE is_active = 1 AND minimum_total_cents <= ? AND (maximum_total_cents IS NULL OR maximum_total_cents > ?) ORDER BY minimum_total_cents DESC LIMIT 1"
   ).bind(estimatedTotal, estimatedTotal).first();
   const deposit = depositRule ? Number(depositRule.deposit_cents) : 0;
@@ -465,7 +469,7 @@ async function handleCreateBooking(request, env) {
   const reference = `BBK-${Date.now().toString(36).toUpperCase()}-${randomToken(3).toUpperCase()}`;
   const priceSnapshotId = uuid();
   const snapshots = {
-    service: { id: service.id, name: service.name, priceType: service.price_type, minimumPriceCents: servicePrice, maximumPriceCents: service.maximum_price_cents, durationMinutes: service.duration_minutes },
+    service: { id: service.id, name: service.name, priceType: customQuoteRequired ? "consultation" : service.price_type, minimumPriceCents: servicePrice, maximumPriceCents: service.maximum_price_cents, durationMinutes: service.duration_minutes, customQuoteRequired },
     addOns: addOns.map(addOn => ({ id: addOn.id, name: addOn.name, priceType: addOn.price_type, minimumPriceCents: addOn.minimum_price_cents, maximumPriceCents: addOn.maximum_price_cents })),
     estimatedTotalCents: estimatedTotal,
     depositCents: deposit,
@@ -478,7 +482,7 @@ async function handleCreateBooking(request, env) {
       .bind(bookingId, reference, clientName, clientEmail, clientPhone, preferredContact, clientIntake.notes, JSON.stringify(clientIntake), safetyReview.needsReview ? "needs_review" : "not_required", safetyReview.summary, requestedStart.toISOString(), estimatedTotal, deposit, Math.max(0, estimatedTotal - deposit), smsConsentAt),
     env.DB.prepare(`INSERT INTO booking_services (booking_id, service_id, service_name_snapshot, price_type_snapshot,
       minimum_price_cents_snapshot, maximum_price_cents_snapshot, duration_minutes_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .bind(bookingId, service.id, service.name, service.price_type, servicePrice, service.maximum_price_cents, service.duration_minutes),
+      .bind(bookingId, service.id, service.name, customQuoteRequired ? "consultation" : service.price_type, servicePrice, service.maximum_price_cents, service.duration_minutes),
     env.DB.prepare(`INSERT INTO booking_price_snapshots (id, booking_id, service_price_cents, add_ons_total_cents,
       estimated_total_cents, deposit_cents, remaining_balance_cents, snapshot_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(priceSnapshotId, bookingId, servicePrice, addOnsTotal, estimatedTotal, deposit, Math.max(0, estimatedTotal - deposit), JSON.stringify(snapshots)),

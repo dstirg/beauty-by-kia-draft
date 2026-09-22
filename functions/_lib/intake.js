@@ -97,6 +97,12 @@ export function normalizeCustomerIntake(client, questionnaireType = null, servic
     });
   }
 
+  if (questionnaireType === "makeupParty") {
+    Object.assign(intake, {
+      partySize: positiveWholeNumber(client.partySize, "Number receiving makeup")
+    });
+  }
+
   return intake;
 }
 
