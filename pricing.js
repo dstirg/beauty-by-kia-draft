@@ -42,7 +42,7 @@
     service("pedicure", "Pedicure", "Nails", "range", 45, 65, "A professional pedicure finished to the selected preferences."),
     service("basic-glam", "BBK Basic Glam", "Makeup", "fixed", 65, 65, "A polished basic-glam makeup application."),
     service("full-glam", "BBK Full Glam", "Makeup", "fixed", 90, 90, "A full-glam makeup application with a more defined finish."),
-    service("wedding-glam", "BBK Wedding Glam", "Makeup", "consultation", 150, 250, "A wedding makeup request reviewed for the look, location, schedule, party size, and trial needs.", { notice: "Wedding pricing may depend on the requested look, location, schedule, trial session, number of people, and other event requirements.", questionnaire: "wedding", requiredUploads: ["inspiration"], statusLabel: "Pending Kia’s review" })
+    service("wedding-glam", "BBK Wedding Glam", "Makeup", "starting", 1195, null, "Bridal package pricing starts at $1,195 and is reviewed for the look, location, schedule, party size, and trial needs.", { notice: "Bridal package pricing starts at $1,195. Larger parties, requested services, service complexity, location, and wedding-day timeline may require an adjusted custom quote.", questionnaire: "wedding", requiredUploads: ["inspiration"], statusLabel: "Pending Kia’s review" })
   ];
 
   const addOns = [

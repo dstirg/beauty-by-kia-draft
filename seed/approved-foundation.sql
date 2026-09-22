@@ -294,10 +294,10 @@ SELECT 'svc-full-glam', 120
 WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-full-glam' AND effective_to IS NULL);
 
 INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
-VALUES ('svc-wedding-glam', 'wedding-glam', 'BBK Wedding Glam', 'Makeup', 'A wedding makeup request reviewed for the look, location, schedule, party size, and trial needs.', 'Wedding pricing may depend on the requested look, location, schedule, trial session, number of people, and other event requirements.', 'consultation', 1, 0, 'wedding', '["inspiration"]')
+VALUES ('svc-wedding-glam', 'wedding-glam', 'BBK Wedding Glam', 'Makeup', 'Bridal package pricing starts at $1,195 and is reviewed for the look, location, schedule, party size, and trial needs.', 'Bridal package pricing starts at $1,195. Larger parties, requested services, service complexity, location, and wedding-day timeline may require an adjusted custom quote.', 'starting', 1, 0, 'wedding', '["inspiration"]')
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
-SELECT 'svc-wedding-glam', 15000, 25000, NULL
+SELECT 'svc-wedding-glam', 119500, NULL, 119500
 WHERE NOT EXISTS (SELECT 1 FROM service_prices WHERE service_id = 'svc-wedding-glam' AND effective_to IS NULL);
 INSERT INTO service_durations (service_id, duration_minutes)
 SELECT 'svc-wedding-glam', 120
@@ -670,7 +670,7 @@ VALUES ('default', 0, 30, 24, 60, 2, 0);
 INSERT OR IGNORE INTO policy_versions (id, version_label, policy_json, is_current, published_at) VALUES (
   'policy-bbk-2026-07-26',
   'BBK-2026-07-26',
-  '{"deposit":"A non-refundable deposit of $25–$50 is required to reserve an appointment. The deposit amount is based on the selected service and is applied toward the final service balance.","late":"A $15 late fee applies when a client arrives more than 15 minutes late. Depending on the schedule and service length, the appointment may need to be shortened, rescheduled, or canceled.","noShow":"Clients who fail to attend an appointment without proper notice will forfeit their deposit. Future appointments may require a new deposit or additional payment requirements.","balance":"The remaining service balance is due at the end of the appointment unless Kia provides different written instructions.","cancellation":"You can cancel up to 24 hours before your scheduled service by contacting Kia. Cancellations made with less than 24 hours’ notice may result in forfeiture of the deposit and may require a new deposit to rebook.","rescheduling":"Rescheduling is subject to Kia’s approval and availability.","preparation":"Follow the preparation instructions for the selected service. Unplanned work may affect the final confirmed price.","guests":"Please do not bring extra guests or children unless approved before the appointment.","satisfaction":"Contact Beauty by Kia promptly with any service concern so Kia can review it."}',
+  '{"deposit":"A non-refundable deposit of $25–$50 is required to reserve an appointment. The deposit amount is based on the selected service and is applied toward the final service balance.","late":"A $15 late fee applies when a client arrives more than 15 minutes late. Depending on the schedule and service length, the appointment may need to be shortened, rescheduled, or canceled.","noShow":"Clients who fail to attend an appointment without proper notice will forfeit their deposit. Future appointments may require a new deposit or additional payment requirements.","balance":"The remaining service balance is due at the end of the appointment unless Kia provides different written instructions.","cancellation":"Contact Kia as soon as possible if an appointment must be changed or canceled.","rescheduling":"Rescheduling is subject to Kia’s approval and availability.","preparation":"Follow the preparation instructions for the selected service. Unplanned work may affect the final confirmed price.","guests":"Please do not bring extra guests or children unless approved before the appointment.","satisfaction":"Contact Beauty by Kia promptly with any service concern so Kia can review it."}',
   1,
   CURRENT_TIMESTAMP
 );
