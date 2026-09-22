@@ -84,9 +84,11 @@ test("booking and admin forms retain separate Turnstile widget identifiers", () 
 
 test("administrator login keeps its form reference across asynchronous authentication", () => {
   const source = fs.readFileSync("index.html", "utf8");
-  assert.match(source, /const loginForm = event\.currentTarget;[\s\S]*?const form = new FormData\(loginForm\);/u);
-  assert.match(source, /await apiRequest\("\/auth\/login"[\s\S]*?loginForm\.reset\(\);/u);
-  assert.doesNotMatch(source, /await apiRequest\("\/auth\/login"[\s\S]*?event\.currentTarget\.reset\(\);/u);
+  const start = source.indexOf("const loginForm = event.currentTarget;");
+  const loginHandler = source.slice(start, source.indexOf("      return;", start));
+  assert.match(loginHandler, /const loginForm = event\.currentTarget;[\s\S]*?const form = new FormData\(loginForm\);/u);
+  assert.match(loginHandler, /await apiRequest\("\/auth\/login"[\s\S]*?loginForm\.reset\(\);/u);
+  assert.doesNotMatch(loginHandler, /event\.currentTarget\.reset\(\);/u);
 });
 
 test("dashboard CSRF cookie is readable at the site root and legacy API cookies are cleared", () => {

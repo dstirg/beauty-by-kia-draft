@@ -1873,7 +1873,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           const turnstileToken = adminTurnstileWidgetId === null ? "" : window.turnstile?.getResponse?.(adminTurnstileWidgetId) || "";
           if (!turnstileToken) throw new Error("Please complete the security verification before logging in.");
           await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), pin: form.get("pin"), turnstileToken }) });
-          event.currentTarget.reset();
+          loginForm.reset();
           adminAuthenticated = true;
           applyServerState(await apiRequest("/admin/state"));
           renderAdmin();
