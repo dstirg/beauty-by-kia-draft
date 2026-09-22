@@ -31,7 +31,7 @@ test("private upload retention cleanup removes R2 objects and metadata after exp
 });
 
 test("booking API persists structured intake and enforces service photo requirements", () => {
-  assert.equal(worker.includes("normalizeCustomerIntake(client, service.questionnaire_type, service.category)"), true);
+  assert.equal(worker.includes("normalizeCustomerIntake(client, service.questionnaire_type, intakeCategory)"), true);
   assert.equal(worker.includes("safety_review_status"), true);
   assert.equal(worker.includes("client_intake_json"), true);
   assert.equal(worker.includes("missingRequiredUploadTypes(requiredUploadTypes, uploadTypes)"), true);
