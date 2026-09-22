@@ -441,7 +441,8 @@ async function handleCreateBooking(request, env) {
   if (!["email", "text", "call"].includes(preferredContact)) throw new RequestError("Select a valid preferred contact method.", 422, "preferred_contact_invalid");
   let clientIntake;
   try {
-    clientIntake = normalizeCustomerIntake(client, service.questionnaire_type, service.category);
+    const intakeCategory = ["Nails", "Makeup"].includes(service.category) ? service.category : "Hair";
+    clientIntake = normalizeCustomerIntake(client, service.questionnaire_type, intakeCategory);
   } catch (error) {
     throw new RequestError(error.message, 422, "customer_answers_invalid");
   }

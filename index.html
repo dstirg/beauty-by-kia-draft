@@ -1450,7 +1450,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const service = getService(booking.serviceId);
     if (!service) { booking.step = 1; return renderBookingServiceStep(); }
     const activeAddOns = state.addOns.filter(addOn => addOn.active && (service.applicableAddOnIds || []).includes(addOn.id.replace("ao-", "")));
-    const category = service.category || "Other";
+    const category = ["Nails", "Makeup"].includes(service.category) ? service.category : "Hair";
     const value = key => escapeHtml(booking.client[key] || "");
     const safetyFields = [["allergies","Allergies or sensitivities"],["previousReactions","Previous reactions to beauty products"],["irritation","Current irritation"],["infection","Current infection"],["injury","Current injury"],["openAreas","Open areas or broken skin"],["otherSafetyConcern","Other safety concern"]];
     const safetyQuestions = safetyFields.map(([key, label]) => `<label>${label}<select name="${key}" required><option value="no" ${booking.client[key] !== "yes" ? "selected" : ""}>No</option><option value="yes" ${booking.client[key] === "yes" ? "selected" : ""}>Yes</option></select></label><label class="safety-followup ${booking.client[key] === "yes" ? "" : "hidden"}" data-safety-for="${key}">${label} — please explain<textarea name="${key}Explanation" ${booking.client[key] === "yes" ? "required" : ""}>${value(`${key}Explanation`)}</textarea></label>`).join("");
