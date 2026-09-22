@@ -47,9 +47,16 @@ test("consultation approval recalculates a deposit from the final approved price
   assert.equal(client.includes("Approve price &amp; request deposit"), true);
 });
 
-test("nail bookings hide hair add-ons and offer a clearly scoped second-service request", () => {
+test("nail bookings hide hair add-ons and use clear service-routing buttons", () => {
   assert.equal(client.includes('category === "Hair" || universallyRelevantAddOns.has(addOn.id)'), true);
-  assert.equal(client.includes('Would you like to ask about another service?'), true);
-  assert.equal(client.includes('This does not add another appointment or charge.'), true);
+  assert.equal(client.includes('Need a different service instead?'), true);
+  assert.equal(client.includes('data-service-route="Makeup"'), true);
+  assert.equal(client.includes('id="continue-nails-only"'), true);
   assert.equal(client.includes('Current nails photo'), true);
+});
+
+test("client booking uses one concise safety question while retaining the review workflow", () => {
+  assert.equal(client.includes('Any allergies, product reactions, irritation, infection, injury, open skin, or other concern'), true);
+  assert.equal(client.includes('data-safety-for="otherSafetyConcern"'), true);
+  assert.equal(client.includes('safetyFields.map(([key, label])'), false);
 });
