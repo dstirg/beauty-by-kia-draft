@@ -284,7 +284,7 @@ SELECT 'svc-basic-glam', 120
 WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-basic-glam' AND effective_to IS NULL);
 
 INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
-VALUES ('svc-full-glam', 'full-glam', 'BBK Full Glam — per person', 'Makeup', 'One full-glam makeup application for one person, customized for the requested finish.', '', 'range', 1, 0, NULL, '[]')
+VALUES ('svc-full-glam', 'full-glam', 'BBK Glam — Makeup per person', 'Makeup', 'One full-glam makeup application for one person, customized for the requested finish.', '', 'range', 1, 0, NULL, '[]')
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
 SELECT 'svc-full-glam', 25000, 30000, NULL
@@ -294,7 +294,7 @@ SELECT 'svc-full-glam', 120
 WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-full-glam' AND effective_to IS NULL);
 
 INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
-VALUES ('svc-wedding-glam', 'wedding-glam', 'BBK Full Bridal Glam — Bride + 4', 'Makeup', 'A five-person bridal makeup package for the bride and four additional people. Pricing starts at $1,195 and is reviewed for the look, location, schedule, and trial needs.', 'Bride + 4 is included. Five BBK Full Glam appointments start at $1,250, so this bridal package starts at $1,195. Larger parties, requested services, service complexity, location, and wedding-day timeline may require an adjusted custom quote.', 'starting', 1, 0, 'wedding', '["inspiration"]')
+VALUES ('svc-wedding-glam', 'wedding-glam', 'BBK Full Bridal Glam — Hair + Makeup for Bride + 4', 'Makeup', 'A five-person bridal package with hair and makeup for the bride and four additional people. Pricing starts at $1,195 and is reviewed for the look, location, schedule, and trial needs.', 'Hair and makeup for the bride plus four additional people are included. Five BBK Glam makeup-only appointments start at $1,250 before hair, so this full bridal package starts at $1,195. Larger parties, requested services, service complexity, location, and wedding-day timeline may require an adjusted custom quote.', 'starting', 1, 0, 'wedding', '["inspiration"]')
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
 SELECT 'svc-wedding-glam', 119500, NULL, 119500
