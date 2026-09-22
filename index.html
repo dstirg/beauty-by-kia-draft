@@ -1867,7 +1867,8 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       renderAdminTurnstile();
       document.getElementById("admin-login-form").addEventListener("submit", async event => {
         event.preventDefault();
-        const form = new FormData(event.currentTarget);
+        const loginForm = event.currentTarget;
+        const form = new FormData(loginForm);
         try {
           const turnstileToken = adminTurnstileWidgetId === null ? "" : window.turnstile?.getResponse?.(adminTurnstileWidgetId) || "";
           if (!turnstileToken) throw new Error("Please complete the security verification before logging in.");
