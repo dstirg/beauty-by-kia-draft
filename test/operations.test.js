@@ -46,3 +46,10 @@ test("consultation approval recalculates a deposit from the final approved price
   assert.match(worker, /UPDATE bookings SET status=\?, payment_status=\?, deposit_cents=\?/u);
   assert.equal(client.includes("Approve price &amp; request deposit"), true);
 });
+
+test("nail bookings hide hair add-ons and offer a clearly scoped second-service request", () => {
+  assert.equal(client.includes('category === "Hair" || universallyRelevantAddOns.has(addOn.id)'), true);
+  assert.equal(client.includes('Would you like to ask about another service?'), true);
+  assert.equal(client.includes('This does not add another appointment or charge.'), true);
+  assert.equal(client.includes('Current nails photo'), true);
+});

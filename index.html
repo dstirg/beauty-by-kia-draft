@@ -1449,8 +1449,11 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
   function renderBookingDetailsStep() {
     const service = getService(booking.serviceId);
     if (!service) { booking.step = 1; return renderBookingServiceStep(); }
-    const activeAddOns = state.addOns.filter(addOn => addOn.active && (service.applicableAddOnIds || []).includes(addOn.id.replace("ao-", "")));
     const category = ["Nails", "Makeup"].includes(service.category) ? service.category : "Hair";
+    const currentPhotoLabel = category === "Nails" ? "Current nails photo" : category === "Makeup" ? "Current face photo" : "Current hair photo";
+    const currentPhotoDescription = category === "Nails" ? "a clear photo of your current nails" : category === "Makeup" ? "a clear photo of your face" : "a clear photo of your current hair";
+    const universallyRelevantAddOns = new Set(["ao-same-day", "ao-before-hours", "ao-after-hours"]);
+    const activeAddOns = state.addOns.filter(addOn => addOn.active && (service.applicableAddOnIds || []).includes(addOn.id.replace("ao-", "")) && (category === "Hair" || universallyRelevantAddOns.has(addOn.id)));
     const value = key => escapeHtml(booking.client[key] || "");
     const safetyFields = [["allergies","Allergies or sensitivities"],["previousReactions","Previous reactions to beauty products"],["irritation","Current irritation"],["infection","Current infection"],["injury","Current injury"],["openAreas","Open areas or broken skin"],["otherSafetyConcern","Other safety concern"]];
     const safetyQuestions = safetyFields.map(([key, label]) => `<label>${label}<select name="${key}" required><option value="no" ${booking.client[key] !== "yes" ? "selected" : ""}>No</option><option value="yes" ${booking.client[key] === "yes" ? "selected" : ""}>Yes</option></select></label><label class="safety-followup ${booking.client[key] === "yes" ? "" : "hidden"}" data-safety-for="${key}">${label} — please explain<textarea name="${key}Explanation" ${booking.client[key] === "yes" ? "required" : ""}>${value(`${key}Explanation`)}</textarea></label>`).join("");
@@ -1472,25 +1475,26 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           ${safetyQuestions}
           ${service.questionnaire === "pressOn" ? `<label>Nail length<input name="nailLength" required value="${escapeHtml(booking.client.nailLength || "")}" /></label><label>Nail shape<input name="nailShape" required value="${escapeHtml(booking.client.nailShape || "")}" /></label><label>Preferred colors<input name="preferredColors" required value="${escapeHtml(booking.client.preferredColors || "")}" /></label><label>Needed-by date (not guaranteed)<input type="date" name="neededBy" required value="${escapeHtml(booking.client.neededBy || "")}" /></label><label class="full-span">Design inspiration and custom notes<textarea name="designNotes" required>${escapeHtml(booking.client.designNotes || "")}</textarea></label><p class="helper-text full-span">Completion or delivery is not promised until Kia confirms it.</p>` : ""}
           ${service.questionnaire === "wedding" ? `<label>Wedding date<input type="date" name="weddingDate" required value="${escapeHtml(booking.client.weddingDate || "")}" /></label><label>Getting-ready location<input name="gettingReadyLocation" required value="${escapeHtml(booking.client.gettingReadyLocation || "")}" /></label><label>Ceremony time<input type="time" name="ceremonyTime" required value="${escapeHtml(booking.client.ceremonyTime || "")}" /></label><label>Number receiving makeup<input type="number" min="1" name="partySize" required value="${escapeHtml(booking.client.partySize || "")}" /></label><label>Makeup trial requested?<select name="trialRequested"><option ${booking.client.trialRequested !== "Yes" ? "selected" : ""}>No</option><option ${booking.client.trialRequested === "Yes" ? "selected" : ""}>Yes</option></select></label><label class="full-span">Additional wedding notes<textarea name="weddingNotes">${escapeHtml(booking.client.weddingNotes || "")}</textarea></label>` : ""}
-          <label class="full-span">Special requests or important details<textarea name="notes" rows="3" placeholder="Colors, design, scalp concerns, or anything Kia should know">${escapeHtml(booking.client.notes)}</textarea></label>
-          <label>Current hair photo (may be required)<input type="file" id="current-hair-upload" accept="image/jpeg,image/png" /></label>
+          <label class="full-span">Special requests or important details<textarea name="notes" rows="3" placeholder="Colors, design details, concerns, or anything Kia should know">${escapeHtml(booking.client.notes)}</textarea></label>
+          <label>${currentPhotoLabel} (may be required)<input type="file" id="current-hair-upload" accept="image/jpeg,image/png" /></label>
           <label>Inspiration photo<input type="file" id="inspiration-upload" accept="image/jpeg,image/png" /></label>
         </div>
         <div class="notice notice-info" style="margin-top:16px">
           <p>${service.requiredUploads?.includes("current")
-            ? "<strong>A current-hair photo is required for this service before you can submit your request.</strong> If Kia needs another view after reviewing your request, she will contact you."
-            : "A clear, current photo of your hair may be required before Kia can approve your appointment request. Upload one now if available. If Kia needs a photo or another view after reviewing your request, she will contact you."} Photos are used only to review and prepare for your requested service and are not posted publicly. Submitting this request does not confirm your appointment.</p>
-          <p class="helper-text" style="margin-bottom:0">JPG or PNG, up to 8 MB. Maximum: one current-hair photo and one inspiration photo. For additional pictures, text or call Beauty by Kia at <a href="tel:+15015220061">501-522-0061</a> after submitting your request.</p>
+            ? `<strong>A ${currentPhotoDescription} is required for this service before you can submit your request.</strong> If Kia needs another view after reviewing your request, she will contact you.`
+            : `A ${currentPhotoDescription} may be required before Kia can approve your appointment request. Upload one now if available. If Kia needs a photo or another view after reviewing your request, she will contact you.`} Photos are used only to review and prepare for your requested service and are not posted publicly. Submitting this request does not confirm your appointment.</p>
+          <p class="helper-text" style="margin-bottom:0">JPG or PNG, up to 8 MB. Maximum: one current-service photo and one inspiration photo. For additional pictures, text or call Beauty by Kia at <a href="tel:+15015220061">501-522-0061</a> after submitting your request.</p>
         </div>
         <div class="form-grid two-columns">
           <div id="current-hair-preview" class="upload-preview">${booking.currentHairPhoto ? `<img src="${booking.currentHairPhoto}" alt="Current hair preview" /><span>Current hair photo added</span>` : "<span>No current-hair photo added yet.</span>"}</div>
           <div id="inspiration-preview" class="upload-preview">${booking.inspirationPhoto ? `<img src="${booking.inspirationPhoto}" alt="Inspiration preview" /><span>Inspiration photo added</span>` : "<span>No inspiration photo added yet.</span>"}</div>
         </div>
-        <fieldset class="fieldset"><legend>Customize your service</legend>
+        ${activeAddOns.length ? `<fieldset class="fieldset"><legend>Appointment options</legend>
           <div class="addon-grid">
             ${activeAddOns.map(addOn => `<div class="addon-option"><label><input type="checkbox" name="addOns" value="${addOn.id}" ${booking.addOnIds.includes(addOn.id) ? "checked" : ""} /><span><strong>${escapeHtml(addOn.name)}</strong><span class="helper-text">${escapeHtml(addOn.description)}</span></span></label><strong>+${PRICING.formatPrice(addOn, value => money.format(value))}</strong></div>`).join("")}
           </div>
-        </fieldset>
+        </fieldset>` : ""}
+        ${category === "Nails" ? `<fieldset class="fieldset"><legend>Would you like to ask about another service?</legend><p class="helper-text">This does not add another appointment or charge. Kia will confirm whether a second service can fit in the same visit.</p><div class="addon-grid"><label class="addon-option"><input type="checkbox" name="additionalServices" value="Makeup" ${booking.client.additionalServices?.includes("Makeup") ? "checked" : ""} /><span><strong>Add makeup</strong><span class="helper-text">Ask Kia about adding a makeup service.</span></span></label><label class="addon-option"><input type="checkbox" name="additionalServices" value="Hair" ${booking.client.additionalServices?.includes("Hair") ? "checked" : ""} /><span><strong>Add hair</strong><span class="helper-text">Ask Kia about adding a hair service.</span></span></label><label class="addon-option"><input type="checkbox" name="additionalServices" value="None" ${booking.client.additionalServices?.includes("None") ? "checked" : ""} /><span><strong>No, continue to schedule</strong><span class="helper-text">Continue with nails only.</span></span></label></div></fieldset>` : ""}
         ${service.notice ? `<div class="notice notice-warning" style="margin-top:20px">${escapeHtml(service.notice)}</div>` : ""}<div class="notice notice-info" style="margin-top:20px"><strong>Preparation:</strong> ${escapeHtml(category === "Nails" ? "Arrive with clean, dry hands. Please tell Kia about any existing product removal or nail concerns before the appointment." : category === "Makeup" ? "Arrive with a clean, makeup-free face. Complete your usual skincare beforehand and tell Kia about sensitivities or products to avoid." : service.prep || "Kia will provide preparation instructions after review.")}</div>
         <div class="booking-actions"><button type="button" class="button button-secondary" id="booking-back-details">Back</button><button class="button button-primary">Continue to Schedule</button></div>
       </form>`;
@@ -1598,14 +1602,15 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       event.preventDefault();
       const form = new FormData(event.currentTarget);
       booking.smsConsent = form.has("smsConsent");
-      const answers = Object.fromEntries([...form.entries()].filter(([key]) => !["name", "phone", "email", "preferredContact", "smsConsent", "addOns"].includes(key)));
+      const answers = Object.fromEntries([...form.entries()].filter(([key]) => !["name", "phone", "email", "preferredContact", "smsConsent", "addOns", "additionalServices"].includes(key)));
       booking.client = {
         ...booking.client,
         ...answers,
         name: String(form.get("name") || "").trim(),
         phone: String(form.get("phone") || "").trim(),
         email: String(form.get("email") || "").trim(),
-        preferredContact: form.get("preferredContact")
+        preferredContact: form.get("preferredContact"),
+        additionalServices: form.getAll("additionalServices").filter(value => value !== "None")
       };
       booking.addOnIds = form.getAll("addOns");
       if (booking.client.preferredContact === "Text" && !booking.smsConsent) {
@@ -1625,6 +1630,12 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       const required = control.value === "yes";
       followUp.classList.toggle("hidden", !required);
       followUp.querySelector("textarea").required = required;
+    }));
+    document.querySelectorAll("input[name='additionalServices']").forEach(control => control.addEventListener("change", () => {
+      const none = document.querySelector("input[name='additionalServices'][value='None']");
+      const serviceChoices = [...document.querySelectorAll("input[name='additionalServices']:not([value='None'])")];
+      if (control.value === "None" && control.checked) serviceChoices.forEach(choice => { choice.checked = false; });
+      if (control.value !== "None" && control.checked && none) none.checked = false;
     }));
     document.getElementById("current-hair-upload")?.addEventListener("change", event => handleImageUpload(event, "currentHairPhoto", "currentHairFile", "current-hair-preview", "Current-look photo added"));
     document.getElementById("inspiration-upload")?.addEventListener("change", event => handleImageUpload(event, "inspirationPhoto", "inspirationFile", "inspiration-preview", "Inspiration photo added"));
@@ -2315,7 +2326,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           <div><span class="eyebrow">${escapeHtml(record.reference)}</span><h2>${escapeHtml(record.client.name)}</h2></div>
           <button class="icon-button" type="button" data-close-dialog="booking-dialog" aria-label="Close">×</button>
         </div>
-        ${record.safety_review_status === "needs_review" ? `<div class="notice notice-warning"><strong>NEEDS SAFETY REVIEW</strong><p>${escapeHtml(record.safety_alert_summary || "Client reported a service-related safety concern.")}</p><button class="button button-primary button-small" data-ack-safety="${record.id}">Acknowledge Kia review</button></div>` : record.safety_review_status === "reviewed" ? `<div class="notice notice-success"><strong>Safety review acknowledged</strong><p>Reviewed ${escapeHtml(record.safety_reviewed_at || "")}</p></div>` : ""}
+        ${record.safety_review_status === "needs_review" ? `<div class="notice notice-warning"><strong>NEEDS SAFETY REVIEW</strong><p>${escapeHtml(record.safety_alert_summary || "Client reported a service-related safety concern.")}</p><button class="button button-primary button-small" data-ack-safety="${record.id}">I have reviewed the reported safety information</button></div>` : record.safety_review_status === "reviewed" ? `<div class="notice notice-success"><strong>SAFETY INFORMATION REVIEWED</strong><p>Kia reviewed the reported information on ${escapeHtml(record.safety_reviewed_at || "")}. This records review only; Kia remains the decision-maker.</p></div>` : ""}
         <div class="summary-grid">
           <div class="summary-card">
             <h3>Appointment</h3>
