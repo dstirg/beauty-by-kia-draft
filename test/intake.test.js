@@ -23,25 +23,23 @@ test("legacy hair intake remains compatible and is surfaced for review", () => {
   assert.equal(safetyReviewFromIntake(intake).needsReview, true);
 });
 
-test("category-specific intake only requires its own questions and safety explanations", () => {
-  const nails = normalizeCustomerIntake({ currentNailProduct: "Gel", removalNeeded: "Yes", nailLength: "Medium", nailShape: "Almond", designNotes: "", allergies: "no", previousReactions: "no", irritation: "no", infection: "no", injury: "no", openAreas: "no", otherSafetyConcern: "no" }, null, "Nails");
+test("nail intake stays brief while safety explanations remain required when a concern is reported", () => {
+  const nails = normalizeCustomerIntake({ designNotes: "", allergies: "no", previousReactions: "no", irritation: "no", infection: "no", injury: "no", openAreas: "no", otherSafetyConcern: "no" }, null, "Nails");
   assert.equal(nails.hairLength, undefined);
   assert.equal(safetyReviewFromIntake(nails).needsReview, false);
-  assert.throws(() => normalizeCustomerIntake({ ...nails, irritation: "yes" }, null, "Nails"), /Irritation explanation is required/u);
+  assert.throws(() => normalizeCustomerIntake({ ...nails, otherSafetyConcern: "yes" }, null, "Nails"), /Other safety concern explanation is required/u);
 });
 
-test("press-on intake requires and preserves every specialty answer", () => {
+test("press-on intake preserves optional design preferences without redundant length or shape fields", () => {
   const intake = normalizeCustomerIntake({
     ...baseClient,
-    nailLength: "Medium",
-    nailShape: "Almond",
     preferredColors: "Pink and gold",
     neededBy: "2030-05-01",
     designNotes: "French tips"
   }, "pressOn");
-  assert.equal(intake.nailShape, "Almond");
+  assert.equal(intake.nailLength, undefined);
   assert.equal(intake.designNotes, "French tips");
-  assert.throws(() => normalizeCustomerIntake({ ...baseClient, nailLength: "Medium" }, "pressOn"), /Nail shape is required/u);
+  assert.equal(normalizeCustomerIntake({ ...baseClient }, "pressOn").preferredColors, "");
 });
 
 test("wedding intake validates party size and preserves every specialty answer", () => {

@@ -65,10 +65,9 @@ export function normalizeCustomerIntake(client, questionnaireType = null, servic
     hairCondition: text(client.hairCondition, "Hair condition", { required: true })
   });
   if (serviceCategory === "Nails") Object.assign(intake, {
-    currentNailProduct: text(client.currentNailProduct, "Current nail product", { required: true }),
-    removalNeeded: text(client.removalNeeded, "Removal needed", { required: true }),
-    nailLength: text(client.nailLength, "Desired nail length", { required: true }),
-    nailShape: text(client.nailShape, "Desired nail shape", { required: true }),
+    currentNailProduct: text(client.currentNailProduct, "Current nail product"),
+    removalNeeded: text(client.removalNeeded, "Removal needed"),
+    nailDesignStyle: text(client.nailDesignStyle, "Nail design style", { maxLength: 160 }),
     designNotes: text(client.designNotes, "Nail design notes", { maxLength: MAX_LONG_TEXT })
   });
   if (serviceCategory === "Makeup") Object.assign(intake, {
@@ -81,11 +80,9 @@ export function normalizeCustomerIntake(client, questionnaireType = null, servic
 
   if (questionnaireType === "pressOn") {
     Object.assign(intake, {
-      nailLength: text(client.nailLength, "Nail length", { required: true }),
-      nailShape: text(client.nailShape, "Nail shape", { required: true }),
-      preferredColors: text(client.preferredColors, "Preferred colors", { required: true, maxLength: 500 }),
-      neededBy: text(client.neededBy, "Needed-by date", { required: true, maxLength: 20 }),
-      designNotes: text(client.designNotes, "Design inspiration and custom notes", { required: true, maxLength: MAX_LONG_TEXT })
+      preferredColors: text(client.preferredColors, "Preferred colors", { maxLength: 500 }),
+      neededBy: text(client.neededBy, "Needed-by date", { maxLength: 20 }),
+      designNotes: text(client.designNotes, "Design inspiration and custom notes", { maxLength: MAX_LONG_TEXT })
     });
   }
 
