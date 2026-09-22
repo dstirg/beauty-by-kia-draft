@@ -1322,7 +1322,8 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const container = document.getElementById("home-service-categories");
     if (!container) return;
     const active = state.services.filter(service => service.active);
-    const categories = [...new Set(active.map(service => service.category).filter(Boolean))];
+    const categoryOrder = ["Hair", "Color", "Braids", "Weaves", "Makeup", "Nails"];
+    const categories = [...new Set(active.map(service => service.category).filter(Boolean))].sort((left, right) => categoryOrder.indexOf(left) - categoryOrder.indexOf(right));
     container.innerHTML = categories.map(category => {
       const serviceCount = active.filter(service => service.category === category).length;
       return `<button type="button" class="home-category-card" data-book-category="${escapeHtml(category)}">
@@ -1438,7 +1439,8 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       Makeup: { title: "Makeup & Wedding", description: "Everyday glam, full glam, and wedding packages" }
     };
     if (!booking.category) {
-      const categories = [...new Set(services.map(service => service.category).filter(Boolean))];
+      const categoryOrder = ["Hair", "Color", "Braids", "Weaves", "Makeup", "Nails"];
+      const categories = [...new Set(services.map(service => service.category).filter(Boolean))].sort((left, right) => categoryOrder.indexOf(left) - categoryOrder.indexOf(right));
       const categoryOptions = categories.map(category => {
         const detail = categoryDetails[category] || { title: category, description: "View available services" };
         const count = services.filter(service => service.category === category).length;
