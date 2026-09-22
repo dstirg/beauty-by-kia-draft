@@ -1948,8 +1948,9 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const upcoming = state.bookings.filter(booking => ["confirmed", "pending_review", "awaiting_deposit"].includes(booking.status));
     const confirmedRevenue = state.bookings.filter(booking => ["confirmed", "completed"].includes(booking.status)).reduce((sum, booking) => sum + Number(booking.total || 0), 0);
     const deposits = state.bookings.filter(booking => String(booking.depositStatus).startsWith("paid")).reduce((sum, booking) => sum + Number(booking.deposit || 0), 0);
+    const safetyNeedsReview = upcoming.filter(booking => booking.safety_review_status === "needs_review");
     return `${adminHeading("Overview", "A simple view of appointments, deposits, and estimated business activity.")}
-      <div class="notice notice-warning">Pricing has been entered from Brookia’s approved pricing list. Final service descriptions, schedule, service inclusions, and payment activation should still be reviewed before launch.</div><div class="stat-grid">
+      ${safetyNeedsReview.length ? `<div class="notice notice-warning"><strong>Safety review needed (${safetyNeedsReview.length})</strong><br />${safetyNeedsReview.map(booking => `${escapeHtml(booking.client.name)} — ${escapeHtml(booking.serviceName)} · ${escapeHtml(booking.reference)}`).join("<br />")}</div>` : ""}<div class="notice notice-warning">Pricing has been entered from Brookia’s approved pricing list. Final service descriptions, schedule, service inclusions, and payment activation should still be reviewed before launch.</div><div class="stat-grid">
         <div class="stat-card"><span>Upcoming</span><strong>${upcoming.length}</strong></div>
         <div class="stat-card"><span>Pending Review</span><strong>${state.bookings.filter(booking => booking.status === "pending_review").length}</strong></div>
         <div class="stat-card"><span>Deposits Recorded</span><strong>${money.format(deposits)}</strong></div>
