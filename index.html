@@ -2303,6 +2303,8 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       ["Number receiving makeup", record.client.partySize], ["Makeup trial requested", record.client.trialRequested],
       ["Wedding notes", record.client.weddingNotes]
     ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
+    const safetyLabels = { allergies: "Allergies or sensitivities", previousReactions: "Previous reactions", irritation: "Irritation", infection: "Infection", injury: "Injury", openAreas: "Open areas", otherSafetyConcern: "Other safety concern" };
+    const safetyDetails = Object.entries(safetyLabels).filter(([key]) => record.client[key] === "yes").map(([key, label]) => [label, record.client[`${key}Explanation`] || "No explanation provided"]);
     const canApprove = ["pending_review", "reschedule_requested", "time_unavailable"].includes(record.status);
     const finalPriceControl = canApprove
       ? `<form data-final-price-form="${record.id}" class="form-grid"><label>Final approved price<input name="finalPrice" type="number" min="${record.priceType === "consultation" ? "0.01" : "0"}" step="0.01" value="${record.finalPrice ?? record.total ?? 0}" required /></label><button class="button button-primary button-small">Approve price &amp; request deposit</button></form>`
@@ -2335,6 +2337,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
             <div class="line-item"><span>Hair condition</span><strong>${escapeHtml(record.client.hairCondition)}</strong></div>
           </div>
         </div>
+        ${safetyDetails.length ? `<div class="notice notice-warning" style="margin-top:18px"><strong>SAFETY INFORMATION — KIA REVIEW REQUIRED</strong>${safetyDetails.map(([label, explanation]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(explanation)}</p>`).join("")}</div>` : ""}
         <div class="summary-card" style="margin-top:18px">
           <h3>Hair Notes</h3>
           <p><strong>Allergies or sensitivities:</strong> ${escapeHtml(record.client.allergies || "None provided")}</p>
@@ -2354,8 +2357,9 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         await apiRequest(`/admin/bookings/${encodeURIComponent(record.id)}/safety-review`, { method: "POST", body: JSON.stringify({}) });
         applyServerState(await apiRequest("/admin/state"));
         dialog.close();
-        showToast("Safety review acknowledged and recorded.");
         renderAdmin();
+        showToast("Safety review acknowledged and recorded.");
+        showBookingDetails(record.id);
       } catch (error) { showToast(error.message); }
     });
     content.querySelector("[data-final-price-form]")?.addEventListener("submit", async event => {
