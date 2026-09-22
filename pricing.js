@@ -41,8 +41,8 @@
     service("manicure", "Manicure", "Nails", "range", 30, 45, "A professional manicure finished to the selected preferences."),
     service("pedicure", "Pedicure", "Nails", "range", 45, 65, "A professional pedicure finished to the selected preferences."),
     service("basic-glam", "BBK Basic Glam", "Makeup", "fixed", 65, 65, "A polished basic-glam makeup application."),
-    service("full-glam", "BBK Full Glam", "Makeup", "fixed", 90, 90, "A full-glam makeup application with a more defined finish."),
-    service("wedding-glam", "BBK Wedding Glam", "Makeup", "starting", 1195, null, "Bridal package pricing starts at $1,195 and is reviewed for the look, location, schedule, party size, and trial needs.", { notice: "Bridal package pricing starts at $1,195. Larger parties, requested services, service complexity, location, and wedding-day timeline may require an adjusted custom quote.", questionnaire: "wedding", requiredUploads: ["inspiration"], statusLabel: "Pending Kia’s review" })
+    service("full-glam", "BBK Full Glam — per person", "Makeup", "range", 250, 300, "One full-glam makeup application for one person, customized for the requested finish."),
+    service("wedding-glam", "BBK Full Bridal Glam — Bride + 4", "Makeup", "starting", 1195, null, "A five-person bridal makeup package for the bride and four additional people. Pricing starts at $1,195 and is reviewed for the look, location, schedule, and trial needs.", { notice: "Bride + 4 is included. Five BBK Full Glam appointments start at $1,250, so this bridal package starts at $1,195. Larger parties, requested services, service complexity, location, and wedding-day timeline may require an adjusted custom quote.", questionnaire: "wedding", requiredUploads: ["inspiration"], statusLabel: "Pending Kia’s review" })
   ];
 
   const addOns = [

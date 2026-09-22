@@ -6,8 +6,11 @@ assert.deepEqual(P.calculate(byName("BBK Basic Glam"), [], { enabled:false }), {
 assert.equal(P.calculate(byName("Silk Press"), [], { enabled:false }).total, 75);
 assert.equal(P.calculate(byName("Silk Press"), P.addOns.filter(a => ["Shampoo","Trim"].includes(a.name)), { enabled:false }).total, 105);
 assert.match(P.formatPrice(byName("Mini Braids")), /Starting at \$180/);
-assert.match(P.formatPrice(byName("BBK Wedding Glam"), value => `$${value.toLocaleString("en-US")}`), /Starting at \$1,195/);
-assert.equal(P.calculate(byName("BBK Wedding Glam"), [], { enabled:false }).deposit, 50);
+assert.match(P.formatPrice(byName("BBK Full Bridal Glam — Bride + 4"), value => `$${value.toLocaleString("en-US")}`), /Starting at \$1,195/);
+assert.equal(P.calculate(byName("BBK Full Bridal Glam — Bride + 4"), [], { enabled:false }).deposit, 50);
+assert.match(byName("BBK Full Glam — per person").name, /per person/);
+assert.match(P.formatPrice(byName("BBK Full Glam — per person")), /\$250–\$300/);
+assert.equal(P.calculate(byName("BBK Full Bridal Glam — Bride \+ 4"), [], { enabled:false }).total < P.calculate(byName("BBK Full Glam — per person"), [], { enabled:false }).total * 5, true);
 assert.equal(P.depositFor(99.99), 25); assert.equal(P.depositFor(100), 40); assert.equal(P.depositFor(179.99), 40); assert.equal(P.depositFor(180), 50);
 const promotion={enabled:true,startDate:"2026-01-01",endDate:"2026-12-31",prices:{"svc-silk-press":65}};
 assert.equal(P.calculate(byName("Silk Press"), [], promotion, new Date("2026-07-26T12:00:00Z")).base,65);
