@@ -9,6 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <style>
+    .hidden { display: none !important; }
 :root {
   --ink: #25151d;
   --muted: #705d66;
@@ -910,7 +911,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     operations: {
       cashAppHandle: "",
       zelleContact: "",
-      depositInstructions: "Kia will send approved Cash App or Zelle instructions after reviewing the appointment request. A payment is not recorded until Kia verifies it.",
+      depositInstructions: "Kia will send approved Cash App instructions after reviewing the appointment request. A payment is not recorded until Kia verifies it.",
       sundaySurcharge: 50,
       photoRetentionDays: 90,
       smsProvider: "none",
@@ -1449,9 +1450,14 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const service = getService(booking.serviceId);
     if (!service) { booking.step = 1; return renderBookingServiceStep(); }
     const activeAddOns = state.addOns.filter(addOn => addOn.active && (service.applicableAddOnIds || []).includes(addOn.id.replace("ao-", "")));
+    const category = service.category || "Other";
+    const value = key => escapeHtml(booking.client[key] || "");
+    const safetyFields = [["allergies","Allergies or sensitivities"],["previousReactions","Previous reactions to beauty products"],["irritation","Current irritation"],["infection","Current infection"],["injury","Current injury"],["openAreas","Open areas or broken skin"],["otherSafetyConcern","Other safety concern"]];
+    const safetyQuestions = safetyFields.map(([key, label]) => `<label>${label}<select name="${key}" required><option value="no" ${booking.client[key] !== "yes" ? "selected" : ""}>No</option><option value="yes" ${booking.client[key] === "yes" ? "selected" : ""}>Yes</option></select></label><label class="safety-followup ${booking.client[key] === "yes" ? "" : "hidden"}" data-safety-for="${key}">${label} — please explain<textarea name="${key}Explanation" ${booking.client[key] === "yes" ? "required" : ""}>${value(`${key}Explanation`)}</textarea></label>`).join("");
+    const categoryQuestions = category === "Hair" ? `<label>Current hair length<select name="hairLength" required><option value="">Select one</option>${["Short","Ear/Chin","Shoulder","Past Shoulder","Mid-Back or Longer"].map(option => `<option ${booking.client.hairLength === option ? "selected" : ""}>${option}</option>`).join("")}</select></label><label>Hair density<select name="hairDensity" required><option value="">Select one</option>${["Fine/Low Density","Average","Thick/High Density","Not Sure"].map(option => `<option ${booking.client.hairDensity === option ? "selected" : ""}>${option}</option>`).join("")}</select></label><label>Hair condition<select name="hairCondition" required><option value="">Select one</option>${["Natural","Relaxed","Locs","Previously Braided","Color-Treated","Other"].map(option => `<option ${booking.client.hairCondition === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>` : category === "Nails" ? `<label>Current nail product<select name="currentNailProduct" required><option value="">Select one</option>${["Natural nails","Polish","Gel","Acrylic","Press-ons","Other"].map(option => `<option ${booking.client.currentNailProduct === option ? "selected" : ""}>${option}</option>`).join("")}</select></label><label>Removal needed?<select name="removalNeeded" required><option value="">Select one</option><option ${booking.client.removalNeeded === "Yes" ? "selected" : ""}>Yes</option><option ${booking.client.removalNeeded === "No" ? "selected" : ""}>No</option></select></label><label>Desired nail length<input name="nailLength" required value="${value("nailLength")}" /></label><label>Desired nail shape<input name="nailShape" required value="${value("nailShape")}" /></label><label class="full-span">Design details<textarea name="designNotes">${value("designNotes")}</textarea></label>` : category === "Makeup" ? `<label>Occasion<input name="makeupOccasion" required value="${value("makeupOccasion")}" /></label><label>Desired makeup look<input name="makeupLook" required value="${value("makeupLook")}" /></label><label>Skin type<select name="skinType" required><option value="">Select one</option>${["Dry","Oily","Combination","Normal","Sensitive","Not sure"].map(option => `<option ${booking.client.skinType === option ? "selected" : ""}>${option}</option>`).join("")}</select></label><label>Lash preference<select name="lashPreference" required><option value="">Select one</option>${["No lashes","Natural lashes","Full glam lashes","Not sure"].map(option => `<option ${booking.client.lashPreference === option ? "selected" : ""}>${option}</option>`).join("")}</select></label><label class="full-span">Products to avoid<textarea name="productAvoidance">${value("productAvoidance")}</textarea></label>` : "";
     return `
       <div class="booking-panel-header">
-        <div><span class="eyebrow">Step 2</span><h2>Tell Kia about your hair</h2><p>${escapeHtml(service.name)} · ${formatDuration(Number(service.duration))}</p></div>
+        <div><span class="eyebrow">Step 2</span><h2>Tell Kia about your ${escapeHtml(category.toLowerCase())} service</h2><p>${escapeHtml(service.name)} · ${formatDuration(Number(service.duration))}</p></div>
         <button class="button button-secondary button-small" id="change-service">Change service</button>
       </div>
       <form id="booking-details-form">
@@ -1461,10 +1467,9 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           <label>Email address<input type="email" name="email" required value="${escapeHtml(booking.client.email)}" autocomplete="email" /></label>
           <label>Preferred contact<select name="preferredContact"><option ${booking.client.preferredContact === "Text" ? "selected" : ""}>Text</option><option ${booking.client.preferredContact === "Email" ? "selected" : ""}>Email</option><option ${booking.client.preferredContact === "Call" ? "selected" : ""}>Call</option></select></label>
           <label class="checkbox-label full-span"><input type="checkbox" name="smsConsent" ${booking.smsConsent ? "checked" : ""} /><span>I agree to receive automated transactional text messages from Beauty by Kia about this booking. Message and data rates may apply. Consent is not a condition of purchase. Reply STOP to opt out.</span></label>
-          <label>Current hair length<select name="hairLength" required><option value="">Select one</option>${["Short","Ear/Chin","Shoulder","Past Shoulder","Mid-Back or Longer"].map(option => `<option ${booking.client.hairLength === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>
-          <label>Hair density<select name="hairDensity" required><option value="">Select one</option>${["Fine/Low Density","Average","Thick/High Density","Not Sure"].map(option => `<option ${booking.client.hairDensity === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>
-          <label>Hair condition<select name="hairCondition" required><option value="">Select one</option>${["Natural","Relaxed","Locs","Previously Braided","Color-Treated","Other"].map(option => `<option ${booking.client.hairCondition === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>
-          <label>Allergies or sensitivities<input name="allergies" value="${escapeHtml(booking.client.allergies)}" placeholder="Type none if not applicable" /></label>
+          ${categoryQuestions}
+          <div class="full-span notice notice-warning"><strong>Safety check:</strong> Please answer each item. If you select Yes, an explanation is required for Kia to review before deciding how to proceed.</div>
+          ${safetyQuestions}
           ${service.questionnaire === "pressOn" ? `<label>Nail length<input name="nailLength" required value="${escapeHtml(booking.client.nailLength || "")}" /></label><label>Nail shape<input name="nailShape" required value="${escapeHtml(booking.client.nailShape || "")}" /></label><label>Preferred colors<input name="preferredColors" required value="${escapeHtml(booking.client.preferredColors || "")}" /></label><label>Needed-by date (not guaranteed)<input type="date" name="neededBy" required value="${escapeHtml(booking.client.neededBy || "")}" /></label><label class="full-span">Design inspiration and custom notes<textarea name="designNotes" required>${escapeHtml(booking.client.designNotes || "")}</textarea></label><p class="helper-text full-span">Completion or delivery is not promised until Kia confirms it.</p>` : ""}
           ${service.questionnaire === "wedding" ? `<label>Wedding date<input type="date" name="weddingDate" required value="${escapeHtml(booking.client.weddingDate || "")}" /></label><label>Getting-ready location<input name="gettingReadyLocation" required value="${escapeHtml(booking.client.gettingReadyLocation || "")}" /></label><label>Ceremony time<input type="time" name="ceremonyTime" required value="${escapeHtml(booking.client.ceremonyTime || "")}" /></label><label>Number receiving makeup<input type="number" min="1" name="partySize" required value="${escapeHtml(booking.client.partySize || "")}" /></label><label>Makeup trial requested?<select name="trialRequested"><option ${booking.client.trialRequested !== "Yes" ? "selected" : ""}>No</option><option ${booking.client.trialRequested === "Yes" ? "selected" : ""}>Yes</option></select></label><label class="full-span">Additional wedding notes<textarea name="weddingNotes">${escapeHtml(booking.client.weddingNotes || "")}</textarea></label>` : ""}
           <label class="full-span">Special requests or important details<textarea name="notes" rows="3" placeholder="Colors, design, scalp concerns, or anything Kia should know">${escapeHtml(booking.client.notes)}</textarea></label>
@@ -1486,7 +1491,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
             ${activeAddOns.map(addOn => `<div class="addon-option"><label><input type="checkbox" name="addOns" value="${addOn.id}" ${booking.addOnIds.includes(addOn.id) ? "checked" : ""} /><span><strong>${escapeHtml(addOn.name)}</strong><span class="helper-text">${escapeHtml(addOn.description)}</span></span></label><strong>+${PRICING.formatPrice(addOn, value => money.format(value))}</strong></div>`).join("")}
           </div>
         </fieldset>
-        ${service.notice ? `<div class="notice notice-warning" style="margin-top:20px">${escapeHtml(service.notice)}</div>` : ""}<div class="notice notice-info" style="margin-top:20px"><strong>Preparation:</strong> ${escapeHtml(service.prep || "Kia will provide preparation instructions after review.")}</div>
+        ${service.notice ? `<div class="notice notice-warning" style="margin-top:20px">${escapeHtml(service.notice)}</div>` : ""}<div class="notice notice-info" style="margin-top:20px"><strong>Preparation:</strong> ${escapeHtml(category === "Nails" ? "Arrive with clean, dry hands. Please tell Kia about any existing product removal or nail concerns before the appointment." : category === "Makeup" ? "Arrive with a clean, makeup-free face. Complete your usual skincare beforehand and tell Kia about sensitivities or products to avoid." : service.prep || "Kia will provide preparation instructions after review.")}</div>
         <div class="booking-actions"><button type="button" class="button button-secondary" id="booking-back-details">Back</button><button class="button button-primary">Continue to Schedule</button></div>
       </form>`;
   }
@@ -1567,7 +1572,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const variable = service?.priceType !== "fixed" || selected.some(item => item.priceType !== "fixed");
     const displayedPrice = PRICING.formatPrice(service, value => money.format(value));
     const confirmationNotice = service?.priceType === "range" ? PRICING.RANGE_NOTICE : service?.priceType === "starting" ? "Final price confirmation may be required." : service?.notice || "";
-    return `<div class="booking-panel-header"><div><span class="eyebrow">Step 4</span><h2>Review and submit</h2><p>Check the appointment request and accept the policies.</p></div></div><div class="notice notice-warning">After Kia reviews and approves your request, you will receive Cash App or Zelle deposit instructions. Your appointment is not confirmed until Kia verifies your deposit.</div><div class="summary-grid"><div class="summary-card"><h3>Appointment Request</h3><div class="line-item"><span>Client</span><strong>${escapeHtml(booking.client.name)}</strong></div><div class="line-item"><span>Selected service</span><strong>${escapeHtml(service?.name || "")}</strong></div><div class="line-item"><span>Displayed service price</span><strong>${displayedPrice}</strong></div><div class="line-item"><span>Requested date</span><strong>${booking.date ? longDateFormatter.format(new Date(`${booking.date}T12:00:00`)) : ""}</strong></div><div class="line-item"><span>Requested time</span><strong>${formatTime(booking.time)}</strong></div>${confirmationNotice ? `<div class="notice notice-info" style="margin-top:16px">${escapeHtml(confirmationNotice)}</div>` : ""}</div><div class="summary-card"><h3>Price Estimate</h3><div class="line-item"><span>Estimated base price</span><strong>${money.format(prices.base)}</strong></div>${selected.map(addOn => `<div class="line-item"><span>${escapeHtml(addOn.name)} <small>(${PRICING.formatPrice(addOn,v=>money.format(v))})</small></span><strong>${money.format(addOn.minPrice)}</strong></div>`).join("")}<div class="line-item"><span>Estimated add-on total</span><strong>${money.format(prices.addOns)}</strong></div><div class="line-item total"><span>Displayed estimated total</span><strong>${money.format(prices.total)}</strong></div><div class="line-item deposit"><span>Normal deposit tier</span><strong>${prices.consultation ? "Calculated after Kia approves the estimate" : money.format(prices.deposit)}</strong></div><div class="line-item"><span>Estimated remaining balance</span><strong>${prices.consultation ? "Pending review" : money.format(prices.balance)}</strong></div><p class="helper-text" style="margin-top:14px">The deposit is based on this displayed estimate. Kia must approve the final service total before the appointment is official.</p></div></div><div class="summary-card" style="margin-top:22px"><h3>Policies</h3><div class="policy-scroll">${renderPolicySummary()}</div><label class="checkbox-label" style="margin-top:16px"><input type="checkbox" id="policy-agreement" ${booking.acceptedPolicies ? "checked" : ""} /><span>I reviewed and accept these policies (version ${escapeHtml(state.policies.version)}).</span></label><p class="helper-text" id="policy-acceptance-status">Policies accepted: ${booking.acceptedPolicies ? "Yes" : "No"}</p></div><div class="summary-card" style="margin-top:22px"><h3>Security verification</h3><p class="helper-text">Complete this check before sending the appointment request.</p><div id="booking-turnstile" style="margin-top:14px"></div></div><div class="booking-actions"><button class="button button-secondary" id="booking-back-review">Back</button><button class="button button-primary" id="complete-booking" ${booking.acceptedPolicies ? "" : "disabled"}>Submit Request — Pending Kia Review</button></div>`;
+    return `<div class="booking-panel-header"><div><span class="eyebrow">Step 4</span><h2>Review and submit</h2><p>Check the appointment request and accept the policies.</p></div></div><div class="notice notice-warning">After Kia reviews and approves your request, she will provide Cash App deposit instructions. Your appointment is not confirmed until Kia verifies your deposit.</div><div class="summary-grid"><div class="summary-card"><h3>Appointment Request</h3><div class="line-item"><span>Client</span><strong>${escapeHtml(booking.client.name)}</strong></div><div class="line-item"><span>Selected service</span><strong>${escapeHtml(service?.name || "")}</strong></div><div class="line-item"><span>Displayed service price</span><strong>${displayedPrice}</strong></div><div class="line-item"><span>Requested date</span><strong>${booking.date ? longDateFormatter.format(new Date(`${booking.date}T12:00:00`)) : ""}</strong></div><div class="line-item"><span>Requested time</span><strong>${formatTime(booking.time)}</strong></div>${confirmationNotice ? `<div class="notice notice-info" style="margin-top:16px">${escapeHtml(confirmationNotice)}</div>` : ""}</div><div class="summary-card"><h3>Price Estimate</h3><div class="line-item"><span>Estimated base price</span><strong>${money.format(prices.base)}</strong></div>${selected.map(addOn => `<div class="line-item"><span>${escapeHtml(addOn.name)} <small>(${PRICING.formatPrice(addOn,v=>money.format(v))})</small></span><strong>${money.format(addOn.minPrice)}</strong></div>`).join("")}<div class="line-item"><span>Estimated add-on total</span><strong>${money.format(prices.addOns)}</strong></div><div class="line-item total"><span>Displayed estimated total</span><strong>${money.format(prices.total)}</strong></div><div class="line-item deposit"><span>Normal deposit tier</span><strong>${prices.consultation ? "Calculated after Kia approves the estimate" : money.format(prices.deposit)}</strong></div><div class="line-item"><span>Estimated remaining balance</span><strong>${prices.consultation ? "Pending review" : money.format(prices.balance)}</strong></div><p class="helper-text" style="margin-top:14px">The deposit is based on this displayed estimate. Kia must approve the final service total before the appointment is official.</p></div></div><div class="summary-card" style="margin-top:22px"><h3>Policies</h3><div class="policy-scroll">${renderPolicySummary()}</div><label class="checkbox-label" style="margin-top:16px"><input type="checkbox" id="policy-agreement" ${booking.acceptedPolicies ? "checked" : ""} /><span>I reviewed and accept these policies (version ${escapeHtml(state.policies.version)}).</span></label><p class="helper-text" id="policy-acceptance-status">Policies accepted: ${booking.acceptedPolicies ? "Yes" : "No"}</p></div><div class="summary-card" style="margin-top:22px"><h3>Security verification</h3><p class="helper-text">Complete this check before sending the appointment request.</p><div id="booking-turnstile" style="margin-top:14px"></div></div><div class="booking-actions"><button class="button button-secondary" id="booking-back-review">Back</button><button class="button button-primary" id="complete-booking" ${booking.acceptedPolicies ? "" : "disabled"}>Submit Request — Pending Kia Review</button></div>`;
   }
 
   function bindBookingStepEvents() {
@@ -1593,17 +1598,14 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       event.preventDefault();
       const form = new FormData(event.currentTarget);
       booking.smsConsent = form.has("smsConsent");
+      const answers = Object.fromEntries([...form.entries()].filter(([key]) => !["name", "phone", "email", "preferredContact", "smsConsent", "addOns"].includes(key)));
       booking.client = {
-        name: form.get("name").trim(),
-        phone: form.get("phone").trim(),
-        email: form.get("email").trim(),
-        preferredContact: form.get("preferredContact"),
-        hairLength: form.get("hairLength"),
-        hairDensity: form.get("hairDensity"),
-        hairCondition: form.get("hairCondition"),
-        allergies: form.get("allergies").trim(),
-        notes: form.get("notes").trim(),
-        nailLength: form.get("nailLength") || "", nailShape: form.get("nailShape") || "", preferredColors: form.get("preferredColors") || "", neededBy: form.get("neededBy") || "", designNotes: form.get("designNotes") || "", weddingDate: form.get("weddingDate") || "", gettingReadyLocation: form.get("gettingReadyLocation") || "", ceremonyTime: form.get("ceremonyTime") || "", partySize: form.get("partySize") || "", trialRequested: form.get("trialRequested") || "", weddingNotes: form.get("weddingNotes") || ""
+        ...booking.client,
+        ...answers,
+        name: String(form.get("name") || "").trim(),
+        phone: String(form.get("phone") || "").trim(),
+        email: String(form.get("email") || "").trim(),
+        preferredContact: form.get("preferredContact")
       };
       booking.addOnIds = form.getAll("addOns");
       if (booking.client.preferredContact === "Text" && !booking.smsConsent) {
@@ -1617,6 +1619,13 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       }
       setBookingStep(3);
     });
+    document.querySelectorAll("select[name='allergies'], select[name='previousReactions'], select[name='irritation'], select[name='infection'], select[name='injury'], select[name='openAreas'], select[name='otherSafetyConcern']").forEach(control => control.addEventListener("change", () => {
+      const followUp = document.querySelector(`[data-safety-for="${control.name}"]`);
+      if (!followUp) return;
+      const required = control.value === "yes";
+      followUp.classList.toggle("hidden", !required);
+      followUp.querySelector("textarea").required = required;
+    }));
     document.getElementById("current-hair-upload")?.addEventListener("change", event => handleImageUpload(event, "currentHairPhoto", "currentHairFile", "current-hair-preview", "Current-look photo added"));
     document.getElementById("inspiration-upload")?.addEventListener("change", event => handleImageUpload(event, "inspirationPhoto", "inspirationFile", "inspiration-preview", "Inspiration photo added"));
     document.querySelectorAll("[data-date]").forEach(button => button.addEventListener("click", () => {
@@ -1961,7 +1970,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         <td><strong>${escapeHtml(record.client.name)}</strong><br /><small>${escapeHtml(record.client.phone)}<br />${escapeHtml(record.client.email)}</small></td>
         <td><strong>${escapeHtml(record.serviceName)}</strong><br /><small>${record.addOns?.map(addOn => escapeHtml(addOn.name)).join(", ") || "No add-ons"}</small></td>
         <td>${record.status === "pending_review" ? "Price pending approval" : `<strong>${money.format(record.total)}</strong><br /><small>Deposit ${money.format(record.deposit)} · Balance ${money.format(record.balance)}</small>`}</td>
-        <td><span class="status-badge status-${record.status}">${escapeHtml(record.status)}</span><br /><small>${escapeHtml(record.depositStatus)}</small></td>
+        <td><span class="status-badge status-${record.status}">${escapeHtml(record.status)}</span>${record.safety_review_status === "needs_review" ? `<br /><span class="status-badge status-declined">Needs Safety Review</span>` : record.safety_review_status === "reviewed" ? `<br /><small>Safety reviewed</small>` : ""}<br /><small>${escapeHtml(record.depositStatus)}</small></td>
         <td><div class="row-actions"><select data-booking-status="${record.id}"><option value="pending_review" ${record.status === "pending_review" ? "selected" : ""}>Pending review</option><option value="awaiting_deposit" ${record.status === "awaiting_deposit" ? "selected" : ""} disabled>Awaiting deposit</option><option value="confirmed" ${record.status === "confirmed" ? "selected" : ""}>Approve / request deposit</option><option value="completed" ${record.status === "completed" ? "selected" : ""}>Completed</option><option value="reschedule_requested" ${record.status === "reschedule_requested" ? "selected" : ""}>Reschedule requested</option><option value="cancelled_by_client" ${record.status === "cancelled_by_client" ? "selected" : ""}>Cancelled by client</option><option value="cancelled_by_brookia" ${record.status === "cancelled_by_brookia" ? "selected" : ""}>Cancelled by Brookia</option><option value="declined" ${record.status === "declined" ? "selected" : ""}>Declined</option><option value="no_show" ${record.status === "no_show" ? "selected" : ""}>No-show</option><option value="time_unavailable" ${record.status === "time_unavailable" ? "selected" : ""}>Time unavailable</option></select>${record.status === "awaiting_deposit" ? `<button class="button button-primary button-small" data-mark-deposit-paid="${record.id}">Mark deposit paid</button>` : ""}<button class="button button-secondary button-small" data-view-booking="${record.id}">Details</button></div></td>
       </tr>`).join("")}</tbody></table></div>`;
   }
@@ -2037,7 +2046,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         <label>Sunday request surcharge<input type="number" min="0" step="1" name="sundaySurcharge" value="${state.operations.sundaySurcharge}" /></label>
         <label>Private-photo retention (days)<input type="number" min="1" max="365" step="1" name="photoRetentionDays" value="${state.operations.photoRetentionDays}" /></label>
         <label class="full-span">Deposit instructions<textarea name="depositInstructions" rows="3">${escapeHtml(state.operations.depositInstructions)}</textarea></label>
-        <div class="notice notice-info full-span"><strong>Manual deposits:</strong> Customers are sent Cash App or Zelle details only after approval. Kia must verify receipt and click “Mark deposit paid” before the appointment becomes confirmed.</div>
+        <div class="notice notice-info full-span"><strong>Manual deposits:</strong> Customers receive Cash App instructions only after approval. Kia must verify receipt and click “Mark deposit paid” before the appointment becomes confirmed.</div>
         <div class="notice notice-warning full-span"><strong>Automated texting:</strong> Consent and message queues are ready, but no texts will be sent until a texting provider is selected, funded, and connected. Current provider: ${escapeHtml(state.operations.smsProvider)}.</div>
       </div><button class="button button-primary" style="margin-top:18px">Save Business & Deposit Settings</button></div></form>
       <form id="security-pin-form"><div class="admin-card"><div class="admin-card-header"><h2>Security</h2></div><p>Change the administrator PIN. All other signed-in devices will be logged out.</p><div class="form-grid three-columns"><label>Current PIN<input type="password" name="currentPin" inputmode="numeric" pattern="[0-9]{6,12}" required autocomplete="current-password" /></label><label>New PIN<input type="password" name="newPin" inputmode="numeric" pattern="[0-9]{6,12}" required autocomplete="new-password" /></label><label>Confirm new PIN<input type="password" name="confirmNewPin" inputmode="numeric" pattern="[0-9]{6,12}" required autocomplete="new-password" /></label></div><button class="button button-primary" style="margin-top:18px">Change PIN</button></div></form>`;
@@ -2260,10 +2269,10 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
 
   async function markDepositPaid(id) {
     if (!window.confirm("Confirm that Kia has personally verified this deposit was received?")) return;
-    const method = window.prompt("Enter the payment method: cash_app or zelle", "cash_app");
+    const method = window.prompt("Enter the payment method: cash_app", "cash_app");
     if (!method) return;
     if (!["cash_app", "zelle"].includes(method.trim().toLowerCase())) {
-      showToast("Choose cash_app or zelle for launch deposits.");
+      showToast("Choose cash_app for launch deposits.");
       return;
     }
     try {
@@ -2302,6 +2311,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           <div><span class="eyebrow">${escapeHtml(record.reference)}</span><h2>${escapeHtml(record.client.name)}</h2></div>
           <button class="icon-button" type="button" data-close-dialog="booking-dialog" aria-label="Close">×</button>
         </div>
+        ${record.safety_review_status === "needs_review" ? `<div class="notice notice-warning"><strong>NEEDS SAFETY REVIEW</strong><p>${escapeHtml(record.safety_alert_summary || "Client reported a service-related safety concern.")}</p><button class="button button-primary button-small" data-ack-safety="${record.id}">Acknowledge Kia review</button></div>` : record.safety_review_status === "reviewed" ? `<div class="notice notice-success"><strong>Safety review acknowledged</strong><p>Reviewed ${escapeHtml(record.safety_reviewed_at || "")}</p></div>` : ""}
         <div class="summary-grid">
           <div class="summary-card">
             <h3>Appointment</h3>
@@ -2337,6 +2347,15 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         <div class="dialog-actions"><button class="button button-secondary" type="button" data-close-dialog="booking-dialog">Close</button></div>
       </div>`;
     dialog.showModal();
+    content.querySelector("[data-ack-safety]")?.addEventListener("click", async () => {
+      try {
+        await apiRequest(`/admin/bookings/${encodeURIComponent(record.id)}/safety-review`, { method: "POST", body: JSON.stringify({}) });
+        applyServerState(await apiRequest("/admin/state"));
+        dialog.close();
+        showToast("Safety review acknowledged and recorded.");
+        renderAdmin();
+      } catch (error) { showToast(error.message); }
+    });
     content.querySelector("[data-final-price-form]")?.addEventListener("submit", async event => {
       event.preventDefault();
       const value = Number(new FormData(event.currentTarget).get("finalPrice"));
@@ -2419,7 +2438,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     state.operations = {
       ...state.operations,
       cashAppHandle: String(form.get("cashAppHandle") || "").trim(),
-      zelleContact: String(form.get("zelleContact") || "").trim(),
+      zelleContact: "",
       depositInstructions: String(form.get("depositInstructions") || "").trim(),
       sundaySurcharge: Number(form.get("sundaySurcharge") || 50),
       photoRetentionDays: Number(form.get("photoRetentionDays") || 90)

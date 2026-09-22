@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   missingRequiredUploadTypes,
   normalizeCustomerIntake,
+  safetyReviewFromIntake,
   normalizeRequiredUploadTypes
 } from "../functions/_lib/intake.js";
 
@@ -14,16 +15,19 @@ const baseClient = {
   notes: "Sensitive scalp"
 };
 
-test("normal customer intake preserves every shared answer", () => {
-  assert.deepEqual(normalizeCustomerIntake(baseClient), {
-    schemaVersion: 1,
-    questionnaireType: null,
-    hairLength: "Shoulder",
-    hairDensity: "Average",
-    hairCondition: "Natural",
-    allergies: "Latex",
-    notes: "Sensitive scalp"
-  });
+test("legacy hair intake remains compatible and is surfaced for review", () => {
+  const intake = normalizeCustomerIntake(baseClient);
+  assert.equal(intake.hairLength, "Shoulder");
+  assert.equal(intake.allergies, "yes");
+  assert.equal(intake.allergiesExplanation, "Latex");
+  assert.equal(safetyReviewFromIntake(intake).needsReview, true);
+});
+
+test("category-specific intake only requires its own questions and safety explanations", () => {
+  const nails = normalizeCustomerIntake({ currentNailProduct: "Gel", removalNeeded: "Yes", nailLength: "Medium", nailShape: "Almond", designNotes: "", allergies: "no", previousReactions: "no", irritation: "no", infection: "no", injury: "no", openAreas: "no", otherSafetyConcern: "no" }, null, "Nails");
+  assert.equal(nails.hairLength, undefined);
+  assert.equal(safetyReviewFromIntake(nails).needsReview, false);
+  assert.throws(() => normalizeCustomerIntake({ ...nails, irritation: "yes" }, null, "Nails"), /Irritation explanation is required/u);
 });
 
 test("press-on intake requires and preserves every specialty answer", () => {
@@ -61,4 +65,3 @@ test("required upload aliases are normalized and missing photos are reported", (
   assert.deepEqual(missingRequiredUploadTypes(["current"], ["current_look", "inspiration"]), []);
   assert.throws(() => normalizeRequiredUploadTypes(["public_gallery"]), /unsupported photo type/u);
 });
-

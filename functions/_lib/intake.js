@@ -18,20 +18,66 @@ function positiveWholeNumber(value, field, maximum = 100) {
   return normalized;
 }
 
-export function normalizeCustomerIntake(client, questionnaireType = null) {
+const SAFETY_FIELDS = [
+  ["allergies", "Allergies or sensitivities"], ["previousReactions", "Previous reactions"],
+  ["irritation", "Irritation"], ["infection", "Infection"], ["injury", "Injury"],
+  ["openAreas", "Open areas"], ["otherSafetyConcern", "Other safety concern"]
+];
+
+function safetyAnswers(client) {
+  const result = {};
+  for (const [key, label] of SAFETY_FIELDS) {
+    const raw = text(client[key], label, { maxLength: 1000 });
+    // Hair requests created before the safety form used a free-text allergy field.
+    // Preserve that data as an explained alert instead of rejecting the booking.
+    const legacyExplanation = key === "allergies" && raw && !["yes", "no"].includes(raw.toLowerCase()) ? raw : "";
+    const answer = legacyExplanation ? "yes" : raw.toLowerCase();
+    if (answer && !["yes", "no"].includes(answer)) throw new TypeError(`${label} must be Yes or No.`);
+    result[key] = answer || "no";
+    const explanationKey = `${key}Explanation`;
+    result[explanationKey] = text(client[explanationKey] || legacyExplanation, `${label} explanation`, { required: answer === "yes", maxLength: 1000 });
+  }
+  return result;
+}
+
+export function safetyReviewFromIntake(intake) {
+  const labels = { allergies: "allergies or sensitivities", previousReactions: "previous reactions", irritation: "irritation", infection: "infection", injury: "injury", openAreas: "open areas", otherSafetyConcern: "another safety concern" };
+  const flagged = SAFETY_FIELDS.filter(([key]) => intake[key] === "yes").map(([key]) => labels[key]);
+  return { needsReview: flagged.length > 0, summary: flagged.length ? `Client reported ${flagged.join(", ")}. Kia review required.` : null };
+}
+
+export function normalizeCustomerIntake(client, questionnaireType = null, serviceCategory = "Hair") {
   if (!client || typeof client !== "object" || Array.isArray(client)) {
     throw new TypeError("Customer details are required.");
   }
 
   const intake = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     questionnaireType: questionnaireType || null,
+    serviceCategory,
+    notes: text(client.notes, "Special requests", { maxLength: MAX_LONG_TEXT }),
+    ...safetyAnswers(client)
+  };
+
+  if (serviceCategory === "Hair") Object.assign(intake, {
     hairLength: text(client.hairLength, "Current hair length", { required: true }),
     hairDensity: text(client.hairDensity, "Hair density", { required: true }),
-    hairCondition: text(client.hairCondition, "Hair condition", { required: true }),
-    allergies: text(client.allergies, "Allergies or sensitivities", { maxLength: 1000 }),
-    notes: text(client.notes, "Special requests", { maxLength: MAX_LONG_TEXT })
-  };
+    hairCondition: text(client.hairCondition, "Hair condition", { required: true })
+  });
+  if (serviceCategory === "Nails") Object.assign(intake, {
+    currentNailProduct: text(client.currentNailProduct, "Current nail product", { required: true }),
+    removalNeeded: text(client.removalNeeded, "Removal needed", { required: true }),
+    nailLength: text(client.nailLength, "Desired nail length", { required: true }),
+    nailShape: text(client.nailShape, "Desired nail shape", { required: true }),
+    designNotes: text(client.designNotes, "Nail design notes", { maxLength: MAX_LONG_TEXT })
+  });
+  if (serviceCategory === "Makeup") Object.assign(intake, {
+    makeupOccasion: text(client.makeupOccasion, "Occasion", { required: true }),
+    makeupLook: text(client.makeupLook, "Desired makeup look", { required: true }),
+    skinType: text(client.skinType, "Skin type", { required: true }),
+    productAvoidance: text(client.productAvoidance, "Products to avoid", { maxLength: 1000 }),
+    lashPreference: text(client.lashPreference, "Lash preference", { required: true })
+  });
 
   if (questionnaireType === "pressOn") {
     Object.assign(intake, {
@@ -70,4 +116,3 @@ export function missingRequiredUploadTypes(requiredTypes, uploadedTypes) {
   const uploaded = new Set(Array.isArray(uploadedTypes) ? uploadedTypes : []);
   return required.filter(type => !uploaded.has(type));
 }
-

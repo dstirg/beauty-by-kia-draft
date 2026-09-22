@@ -24,7 +24,7 @@ import {
 } from "../_lib/booking.js";
 import { validateAndNormalizeImage } from "../_lib/images.js";
 import { depositForDisplayedEstimate } from "../_lib/payments.js";
-import { missingRequiredUploadTypes, normalizeCustomerIntake } from "../_lib/intake.js";
+import { missingRequiredUploadTypes, normalizeCustomerIntake, safetyReviewFromIntake } from "../_lib/intake.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 const CSRF_COOKIE = "bbk_csrf";
@@ -416,7 +416,7 @@ async function handleCreateBooking(request, env) {
   const body = await readJson(request);
   if (body.turnstileToken && !await verifyTurnstile(request, env, body.turnstileToken, "booking_request")) throw new RequestError("Request verification failed.", 403);
   const serviceId = requiredString(body.serviceId, "Service", 100);
-  const service = await env.DB.prepare(`SELECT s.id, s.name, s.price_type, s.is_active, s.questionnaire_type, s.required_upload_types,
+  const service = await env.DB.prepare(`SELECT s.id, s.name, s.category, s.price_type, s.is_active, s.questionnaire_type, s.required_upload_types,
       p.minimum_price_cents, p.maximum_price_cents,
       d.duration_minutes FROM services s JOIN service_prices p ON p.service_id = s.id AND p.effective_to IS NULL
       JOIN service_durations d ON d.service_id = s.id AND d.effective_to IS NULL
@@ -441,10 +441,11 @@ async function handleCreateBooking(request, env) {
   if (!["email", "text", "call"].includes(preferredContact)) throw new RequestError("Select a valid preferred contact method.", 422, "preferred_contact_invalid");
   let clientIntake;
   try {
-    clientIntake = normalizeCustomerIntake(client, service.questionnaire_type);
+    clientIntake = normalizeCustomerIntake(client, service.questionnaire_type, service.category);
   } catch (error) {
     throw new RequestError(error.message, 422, "customer_answers_invalid");
   }
+  const safetyReview = safetyReviewFromIntake(clientIntake);
   const smsConsentAt = body.smsConsent === true ? nowIso() : null;
   if (preferredContact === "text" && !smsConsentAt) throw new RequestError("Text-message consent is required when text is selected.");
   const requestedStart = new Date(body.requestedStartAt);
@@ -471,9 +472,9 @@ async function handleCreateBooking(request, env) {
   };
   const statements = [
     env.DB.prepare(`INSERT INTO bookings (id, reference, client_name, client_email, client_phone, preferred_contact, customer_notes,
-      client_intake_json, requested_start_at, estimated_total_cents, deposit_cents, remaining_balance_cents, sms_consent_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(bookingId, reference, clientName, clientEmail, clientPhone, preferredContact, clientIntake.notes, JSON.stringify(clientIntake), requestedStart.toISOString(), estimatedTotal, deposit, Math.max(0, estimatedTotal - deposit), smsConsentAt),
+      client_intake_json, safety_review_status, safety_alert_summary, requested_start_at, estimated_total_cents, deposit_cents, remaining_balance_cents, sms_consent_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(bookingId, reference, clientName, clientEmail, clientPhone, preferredContact, clientIntake.notes, JSON.stringify(clientIntake), safetyReview.needsReview ? "needs_review" : "not_required", safetyReview.summary, requestedStart.toISOString(), estimatedTotal, deposit, Math.max(0, estimatedTotal - deposit), smsConsentAt),
     env.DB.prepare(`INSERT INTO booking_services (booking_id, service_id, service_name_snapshot, price_type_snapshot,
       minimum_price_cents_snapshot, maximum_price_cents_snapshot, duration_minutes_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .bind(bookingId, service.id, service.name, service.price_type, servicePrice, service.maximum_price_cents, service.duration_minutes),
@@ -529,7 +530,19 @@ async function handleCreateBooking(request, env) {
       .bind(bookingId, nowIso(), uploadId));
   }
   await env.DB.batch(statements);
-  return response({ ok: true, booking: { id: bookingId, reference, status: "pending_review" } }, 201);
+  return response({ ok: true, booking: { id: bookingId, reference, status: "pending_review", safetyReviewStatus: safetyReview.needsReview ? "needs_review" : "not_required" } }, 201);
+}
+
+async function handleSafetyReview(request, env, bookingId) {
+  const session = await authenticate(request, env, true);
+  const booking = await env.DB.prepare("SELECT id, safety_review_status FROM bookings WHERE id=?").bind(bookingId).first();
+  if (!booking) throw new RequestError("Booking not found.", 404);
+  if (booking.safety_review_status !== "needs_review") return response({ ok: true, booking: { id: booking.id, safetyReviewStatus: booking.safety_review_status } });
+  const reviewedAt = nowIso();
+  await env.DB.prepare("UPDATE bookings SET safety_review_status='reviewed', safety_reviewed_at=?, safety_reviewed_by_admin_id=?, updated_at=? WHERE id=?")
+    .bind(reviewedAt, session.admin_account_id, reviewedAt, booking.id).run();
+  await audit(env, request, "booking_safety_review_acknowledged", session.admin_account_id, "booking", booking.id, { previousStatus: "needs_review", reviewedAt });
+  return response({ ok: true, booking: { id: booking.id, safetyReviewStatus: "reviewed", safetyReviewedAt: reviewedAt, safetyReviewedByAdminId: session.admin_account_id } });
 }
 
 async function loadAdminState(env) {
@@ -789,10 +802,10 @@ async function handleApproveBooking(request, env, bookingId) {
   }
   const paymentOptions = [
     paymentSettings.cash_app_handle ? `Cash App ${paymentSettings.cash_app_handle}` : null,
-    paymentSettings.zelle_contact ? `Zelle ${paymentSettings.zelle_contact}` : null
+    null
   ].filter(Boolean);
   const defaultCustomerMessage = depositRequired > 0
-    ? `Beauty by Kia approved request ${booking.reference}. A $${(depositRequired / 100).toFixed(2)} deposit is required. ${paymentOptions.length ? `Pay using ${paymentOptions.join(" or ")}.` : "Kia will send Cash App or Zelle details directly."} Kia will verify the deposit before confirmation.`
+    ? `Beauty by Kia approved request ${booking.reference}. A $${(depositRequired / 100).toFixed(2)} deposit is required. ${paymentOptions.length ? `Pay using ${paymentOptions.join(" or ")}.` : "Kia will send Cash App details directly."} Kia will verify the deposit before confirmation.`
     : `Beauty by Kia approved request ${booking.reference}. Your appointment is confirmed.`;
   const customerMessage = String(body.customerMessage || defaultCustomerMessage).slice(0, 4000);
   const updatedAt = nowIso();
@@ -1054,6 +1067,8 @@ async function routeRequest(context) {
   if (method === "POST" && match) return handleBookingDeposit(request, env, match[1]);
   match = path.match(/^admin\/bookings\/([^/]+)\/status$/u);
   if (method === "POST" && match) return handleBookingStatus(request, env, match[1]);
+  match = path.match(/^admin\/bookings\/([^/]+)\/safety-review$/u);
+  if (method === "POST" && match) return handleSafetyReview(request, env, match[1]);
   if (method === "POST" && path === "admin/gallery") return handleGalleryUpload(request, env);
   match = path.match(/^gallery\/([^/]+)\/content$/u);
   if (method === "GET" && match) return handleGalleryContent(env, match[1]);

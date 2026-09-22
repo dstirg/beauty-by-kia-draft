@@ -115,7 +115,7 @@ test("automatic payments remain disabled and launch wording uses manual deposits
   const wrangler = fs.readFileSync("wrangler.toml", "utf8");
   const client = fs.readFileSync("index.html", "utf8");
   assert.match(wrangler, /PAYMENTS_ENABLED\s*=\s*"false"/u);
-  assert.match(client, /After Kia reviews and approves your request, you will receive Cash App or Zelle deposit instructions\./u);
+  assert.match(client, /After Kia reviews and approves your request, she will provide Cash App deposit instructions\./u);
   assert.doesNotMatch(client, /Stripe/u);
   assert.match(client, /position:\s*sticky;/u);
   assert.match(client, /Reference number/u);
