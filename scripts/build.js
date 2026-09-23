@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 const outputDirectory = resolve("dist");
 const publicFiles = [
+  "app-layout.js",
   "app-config.js",
   "icon.svg",
   "index.html",

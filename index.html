@@ -844,22 +844,28 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
   </dialog>
 
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+  <script src="app-layout.js"></script>
   <script src="app-config.js"></script>
   <script src="pricing.js"></script>
   <script>
 (() => {
   "use strict";
 
-  // Keep every routed page inside the application shell and the footer last,
-  // even when older markup has placed the reusable footer above page sections.
-  const appShell = document.getElementById("app");
-  const siteFooter = document.querySelector(".site-footer");
-  if (appShell) {
-    document.querySelectorAll(".view").forEach(view => {
-      if (!appShell.contains(view)) appShell.append(view);
-    });
-    if (siteFooter) appShell.append(siteFooter);
+  window.BBK_LAYOUT.normalizeViewLayout(document);
+
+  function showSafeAppFallback() {
+    const activeView = document.querySelector(".view.active-view");
+    const hasVisibleContent = activeView && activeView.textContent.trim() && activeView.getBoundingClientRect().width > 0 && activeView.getBoundingClientRect().height > 0;
+    if (hasVisibleContent || document.getElementById("app-error-fallback")) return;
+    const fallback = document.createElement("section");
+    fallback.id = "app-error-fallback";
+    fallback.className = "booking-shell";
+    fallback.innerHTML = '<div class="notice notice-warning"><strong>Something went wrong loading this page.</strong><br>Please refresh and try again. If the problem continues, return to the <a href="#home">home page</a>.</div>';
+    document.getElementById("app")?.prepend(fallback);
   }
+
+  window.addEventListener("error", () => window.setTimeout(showSafeAppFallback, 0));
+  window.addEventListener("unhandledrejection", () => window.setTimeout(showSafeAppFallback, 0));
 
   const STORAGE_KEY = "beautyByKiaPortalV1";
   const CONFIG = window.BBK_CONFIG || { apiBaseUrl: "/api", appEnvironment: "development", localStorageFallback: true, paymentsEnabled: false };
