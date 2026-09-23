@@ -99,7 +99,26 @@ export function normalizeCustomerIntake(client, questionnaireType = null, servic
 
   if (questionnaireType === "makeupParty") {
     Object.assign(intake, {
-      partySize: positiveWholeNumber(client.partySize, "Number receiving makeup")
+      partySize: positiveWholeNumber(client.partySize, "Number receiving makeup", 6)
+    });
+  }
+
+  if (questionnaireType === "bridal") {
+    Object.assign(intake, {
+      weddingDate: text(client.weddingDate, "Wedding date", { required: true, maxLength: 20 }),
+      gettingReadyLocation: text(client.gettingReadyLocation, "Getting-ready location", { maxLength: 500 }),
+      ceremonyTime: text(client.ceremonyTime, "Ceremony time", { maxLength: 20 }),
+      weddingNotes: text(client.weddingNotes, "Additional wedding notes", { maxLength: MAX_LONG_TEXT })
+    });
+  }
+
+  if (questionnaireType === "bridalParty") {
+    Object.assign(intake, {
+      weddingDate: text(client.weddingDate, "Wedding date", { required: true, maxLength: 20 }),
+      gettingReadyLocation: text(client.gettingReadyLocation, "Getting-ready location", { maxLength: 500 }),
+      ceremonyTime: text(client.ceremonyTime, "Ceremony time", { maxLength: 20 }),
+      partySize: positiveWholeNumber(client.partySize, "Number receiving makeup"),
+      weddingNotes: text(client.weddingNotes, "Additional wedding notes", { maxLength: MAX_LONG_TEXT })
     });
   }
 

@@ -274,7 +274,7 @@ SELECT 'svc-pedicure', 120
 WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-pedicure' AND effective_to IS NULL);
 
 INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
-VALUES ('svc-basic-glam', 'basic-glam', 'BBK Basic Glam', 'Makeup', 'A polished basic-glam makeup application.', '', 'fixed', 1, 0, NULL, '[]')
+VALUES ('svc-basic-glam', 'basic-glam', 'BBK Soft Glam', 'Makeup', 'A soft, flawless beat that enhances your natural features without feeling overly dramatic. Perfect for a polished everyday or special-occasion look.', '', 'fixed', 1, 0, NULL, '[]')
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
 SELECT 'svc-basic-glam', 7500, 7500, NULL
@@ -284,34 +284,74 @@ SELECT 'svc-basic-glam', 120
 WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-basic-glam' AND effective_to IS NULL);
 
 INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
-VALUES ('svc-full-glam', 'full-glam', 'BBK Full Glam', 'Makeup', 'One full-glam makeup application for one person, customized for the requested finish.', '', 'fixed', 1, 0, NULL, '[]')
+VALUES ('svc-full-glam', 'full-glam', 'BBK Full Glam', 'Makeup', 'More coverage, definition, and detail while still complementing your natural features.', '', 'fixed', 1, 0, NULL, '[]')
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
-SELECT 'svc-full-glam', 15000, 15000, NULL
+SELECT 'svc-full-glam', 10000, 10000, NULL
 WHERE NOT EXISTS (SELECT 1 FROM service_prices WHERE service_id = 'svc-full-glam' AND effective_to IS NULL);
 INSERT INTO service_durations (service_id, duration_minutes)
 SELECT 'svc-full-glam', 120
 WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-full-glam' AND effective_to IS NULL);
 
 INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
-VALUES ('svc-bbk-glam-party', 'bbk-glam-party', 'BBK Glam', 'Makeup', 'Makeup services for small parties and special occasions.', 'Up to 2 people — $250 total. Up to 3 people — $300 total. Parties of 4 or more require a custom quote based on party size, timing, location, and service requirements.', 'range', 1, 0, 'makeupParty', '["inspiration"]')
+VALUES ('svc-signature-glam', 'signature-glam', 'BBK Signature Glam', 'Makeup', 'A bold, detailed, camera-ready Beauty by Kia beat customized for a statement finish.', '', 'fixed', 1, 0, NULL, '[]')
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
-SELECT 'svc-bbk-glam-party', 25000, 30000, NULL
+SELECT 'svc-signature-glam', 12500, 12500, NULL
+WHERE NOT EXISTS (SELECT 1 FROM service_prices WHERE service_id = 'svc-signature-glam' AND effective_to IS NULL);
+INSERT INTO service_durations (service_id, duration_minutes)
+SELECT 'svc-signature-glam', 120
+WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-signature-glam' AND effective_to IS NULL);
+
+INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
+VALUES ('svc-bbk-glam-party', 'bbk-glam-party', 'BBK Glam Party', 'Makeup', 'Makeup for birthdays, girls’ nights, photoshoots, celebrations, and group events.', '$90 per person · 3-person minimum · 3 guests $270 · 4 guests $360 · 5 guests $450. Parties of 6 or more receive Kia’s custom quote.', 'starting', 1, 0, 'makeupParty', '[]')
+ON CONFLICT(id) DO NOTHING;
+INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
+SELECT 'svc-bbk-glam-party', 27000, NULL, 27000
 WHERE NOT EXISTS (SELECT 1 FROM service_prices WHERE service_id = 'svc-bbk-glam-party' AND effective_to IS NULL);
 INSERT INTO service_durations (service_id, duration_minutes)
 SELECT 'svc-bbk-glam-party', 180
 WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-bbk-glam-party' AND effective_to IS NULL);
 
 INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
-VALUES ('svc-wedding-glam', 'wedding-glam', 'BBK Full Bridal Glam — Hair + Makeup for Bride + 3', 'Makeup', 'Wedding-day hair and makeup for the bride plus up to three additional people, for a maximum of four people total. Pricing starts at $1,195.', 'Parties larger than 4 require a custom quote and may require an additional beauty professional. Final pricing is reviewed for requested styles, complexity, location, travel, ready-by time, timeline, and staffing needs.', 'starting', 1, 0, 'wedding', '["inspiration"]')
+VALUES ('svc-wedding-glam', 'wedding-glam', 'BBK Bridal Glam', 'Makeup', 'Timeless, elegant, long-lasting makeup customized specifically for your wedding day.', 'Makeup only. Includes elevated skin prep, premium strip lashes, long-wear setting, and a mini bridal touch-up kit.', 'fixed', 1, 0, 'bridal', '[]')
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
-SELECT 'svc-wedding-glam', 119500, NULL, 119500
+SELECT 'svc-wedding-glam', 17500, 17500, NULL
 WHERE NOT EXISTS (SELECT 1 FROM service_prices WHERE service_id = 'svc-wedding-glam' AND effective_to IS NULL);
 INSERT INTO service_durations (service_id, duration_minutes)
 SELECT 'svc-wedding-glam', 120
 WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-wedding-glam' AND effective_to IS NULL);
+
+INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
+VALUES ('svc-bridal-trial', 'bridal-trial', 'BBK Bridal Trial', 'Makeup', 'A complete bridal makeup application to refine your inspiration, coverage, colors, and wedding-day vision.', 'Makeup only. Your trial helps finalize the bridal look before the wedding day.', 'fixed', 1, 0, 'bridal', '[]')
+ON CONFLICT(id) DO NOTHING;
+INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
+SELECT 'svc-bridal-trial', 10000, 10000, NULL
+WHERE NOT EXISTS (SELECT 1 FROM service_prices WHERE service_id = 'svc-bridal-trial' AND effective_to IS NULL);
+INSERT INTO service_durations (service_id, duration_minutes)
+SELECT 'svc-bridal-trial', 120
+WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-bridal-trial' AND effective_to IS NULL);
+
+INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
+VALUES ('svc-bridal-party-glam', 'bridal-party-glam', 'BBK Bridal Party Glam', 'Makeup', 'Professional makeup for bridesmaids and other adult members of the wedding party.', '$100 per person · Makeup only. Kia will confirm the wedding-day timeline and group details.', 'starting', 1, 0, 'bridalParty', '[]')
+ON CONFLICT(id) DO NOTHING;
+INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
+SELECT 'svc-bridal-party-glam', 10000, NULL, 10000
+WHERE NOT EXISTS (SELECT 1 FROM service_prices WHERE service_id = 'svc-bridal-party-glam' AND effective_to IS NULL);
+INSERT INTO service_durations (service_id, duration_minutes)
+SELECT 'svc-bridal-party-glam', 120
+WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-bridal-party-glam' AND effective_to IS NULL);
+
+INSERT INTO services (id, slug, name, category, description, notice, price_type, is_active, is_featured, questionnaire_type, required_upload_types)
+VALUES ('svc-junior-glam', 'junior-glam', 'BBK Junior Glam', 'Makeup', 'A soft, age-appropriate beauty service for junior bridesmaids and younger clients.', 'Makeup only. Includes light skin prep, subtle eye enhancement, lip gloss, and finishing touches.', 'fixed', 1, 0, NULL, '[]')
+ON CONFLICT(id) DO NOTHING;
+INSERT INTO service_prices (service_id, minimum_price_cents, maximum_price_cents, starting_price_cents)
+SELECT 'svc-junior-glam', 5000, 5000, NULL
+WHERE NOT EXISTS (SELECT 1 FROM service_prices WHERE service_id = 'svc-junior-glam' AND effective_to IS NULL);
+INSERT INTO service_durations (service_id, duration_minutes)
+SELECT 'svc-junior-glam', 60
+WHERE NOT EXISTS (SELECT 1 FROM service_durations WHERE service_id = 'svc-junior-glam' AND effective_to IS NULL);
 
 INSERT INTO add_ons (id, slug, name, description, price_type, minimum_price_cents, maximum_price_cents, is_active)
 VALUES ('ao-shampoo', 'shampoo', 'Shampoo', 'Professional cleansing service.', 'range', 1500, 2000, 1)
@@ -640,6 +680,16 @@ INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-full-
 INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-full-glam', 'ao-same-day');
 INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-full-glam', 'ao-before-hours');
 INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-full-glam', 'ao-after-hours');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-shampoo');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-deep-conditioning');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-trim');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-finish');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-hair-included');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-extra-length');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-extra-thickness');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-same-day');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-before-hours');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-signature-glam', 'ao-after-hours');
 INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bbk-glam-party', 'ao-shampoo');
 INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bbk-glam-party', 'ao-deep-conditioning');
 INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bbk-glam-party', 'ao-trim');
@@ -660,6 +710,36 @@ INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-weddi
 INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-wedding-glam', 'ao-same-day');
 INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-wedding-glam', 'ao-before-hours');
 INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-wedding-glam', 'ao-after-hours');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-shampoo');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-deep-conditioning');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-trim');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-finish');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-hair-included');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-extra-length');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-extra-thickness');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-same-day');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-before-hours');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-trial', 'ao-after-hours');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-shampoo');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-deep-conditioning');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-trim');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-finish');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-hair-included');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-extra-length');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-extra-thickness');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-same-day');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-before-hours');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-bridal-party-glam', 'ao-after-hours');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-shampoo');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-deep-conditioning');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-trim');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-finish');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-hair-included');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-extra-length');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-extra-thickness');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-same-day');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-before-hours');
+INSERT OR IGNORE INTO service_add_ons (service_id, add_on_id) VALUES ('svc-junior-glam', 'ao-after-hours');
 
 INSERT OR IGNORE INTO deposit_rules (id, name, minimum_total_cents, maximum_total_cents, deposit_cents) VALUES
   ('deposit-under-100', 'Under $100', 0, 10000, 2500),

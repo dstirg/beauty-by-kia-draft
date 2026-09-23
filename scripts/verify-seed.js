@@ -13,7 +13,7 @@ database.exec(seed);
 database.exec(seed);
 
 const count = table => database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count;
-const expectations = { services: 30, add_ons: 10, deposit_rules: 3, weekly_availability: 7, promotions: 1, appointment_buffers: 1 };
+const expectations = { services: 35, add_ons: 10, deposit_rules: 3, weekly_availability: 7, promotions: 1, appointment_buffers: 1 };
 for (const [table, expected] of Object.entries(expectations)) {
   const actual = count(table);
   if (actual !== expected) throw new Error(`${table}: expected ${expected}, received ${actual}`);

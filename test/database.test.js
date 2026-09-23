@@ -72,8 +72,27 @@ test("production settings use D1 and disable browser authority and payments", ()
   const settings = Object.fromEntries(db.prepare("SELECT setting_key, setting_value FROM application_settings").all().map(row => [row.setting_key, row.setting_value]));
   assert.equal(settings.local_storage_fallback, "false");
   assert.equal(settings.payments_enabled, "false");
-  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM services").get().count, 31);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM services").get().count, 35);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM add_ons").get().count, 10);
+});
+
+test("makeup and bridal catalog is makeup-only with approved current prices", () => {
+  const db = database();
+  const makeup = db.prepare(`SELECT s.name, s.questionnaire_type, p.minimum_price_cents, p.maximum_price_cents, p.starting_price_cents
+    FROM services s JOIN service_prices p ON p.service_id = s.id AND p.effective_to IS NULL
+    WHERE s.category = 'Makeup' AND s.is_active = 1 ORDER BY s.name`).all();
+  const byName = Object.fromEntries(makeup.map(service => [service.name, service]));
+  assert.deepEqual(Object.keys(byName).sort(), ["BBK Soft Glam", "BBK Full Glam", "BBK Signature Glam", "BBK Glam Party", "BBK Bridal Glam", "BBK Bridal Trial", "BBK Bridal Party Glam", "BBK Junior Glam"].sort());
+  assert.equal(byName["BBK Soft Glam"].minimum_price_cents, 7500);
+  assert.equal(byName["BBK Full Glam"].minimum_price_cents, 10000);
+  assert.equal(byName["BBK Signature Glam"].minimum_price_cents, 12500);
+  assert.equal(byName["BBK Glam Party"].starting_price_cents, 27000);
+  assert.equal(byName["BBK Bridal Glam"].minimum_price_cents, 17500);
+  assert.equal(byName["BBK Bridal Trial"].minimum_price_cents, 10000);
+  assert.equal(byName["BBK Bridal Party Glam"].starting_price_cents, 10000);
+  assert.equal(byName["BBK Junior Glam"].minimum_price_cents, 5000);
+  assert.equal(makeup.some(service => /hair/i.test(service.name)), false);
+  assert.equal(makeup.every(service => service.questionnaire_type !== "wedding"), true);
 });
 
 test("owner-approved availability, Sunday request surcharge, and daily limit are seeded", () => {
