@@ -60,3 +60,13 @@ test("client booking uses one concise safety question while retaining the review
   assert.equal(client.includes('data-safety-for="otherSafetyConcern"'), true);
   assert.equal(client.includes('safetyFields.map(([key, label])'), false);
 });
+
+test("every customer navigation route has a page target", () => {
+  for (const route of ["home", "about", "book", "policies", "admin", "confirmation"]) {
+    assert.equal(client.includes(`id="view-${route}"`), true, `missing ${route} page target`);
+  }
+  assert.equal(client.includes('id="booking-panel"'), true);
+  assert.equal(client.includes('id="public-policies"'), true);
+  assert.equal(client.includes('id="admin-root"'), true);
+  assert.equal(client.includes('id="confirmation-content"'), true);
+});

@@ -242,6 +242,11 @@ h2 { font-size: clamp(2rem, 4vw, 3.6rem); line-height: 1.04; letter-spacing: -.0
 .filter-button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
 
 .booking-shell { padding: 45px clamp(16px, 5vw, 70px) 90px; max-width: 1180px; margin: 0 auto; }
+.booking-progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; list-style: none; margin: 0 0 26px; padding: 0; }
+.booking-progress li { display: flex; align-items: center; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); font-size: .9rem; font-weight: 700; }
+.booking-progress li span { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 50%; background: #f4e7eb; color: var(--primary); }
+.booking-progress li.active { border-color: var(--primary); color: var(--ink); }
+.booking-progress li.active span, .booking-progress li.complete span { background: var(--primary); color: #fff; }
 .progress-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; list-style: none; padding: 0; margin: 0 0 24px; }
 .progress-steps li { display: flex; align-items: center; gap: 10px; color: #9a8f92; font-weight: 700; font-size: .88rem; }
 .progress-steps li::after { content: ""; flex: 1; height: 2px; background: var(--line); }
@@ -752,6 +757,38 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     <small class="footer-draft-note">© 2026 Beauty by Kia. All rights reserved. Appointment requests are subject to availability, review, and confirmation. Prices, deposits, timing, and service details are confirmed by Kia before services begin. Approved deposits are arranged directly with Kia by Cash App.</small>
   </footer>
 
+  <section id="view-book" class="view" aria-label="Book an appointment">
+    <div class="booking-shell">
+      <span class="eyebrow">Appointment Request</span>
+      <h1>Book with Beauty by Kia</h1>
+      <p class="section-intro">Choose your service, share your appointment details, and send your request to Kia for review.</p>
+      <ol id="booking-progress" class="booking-progress" aria-label="Booking progress">
+        <li class="active"><span>1</span>Service</li>
+        <li><span>2</span>Details</li>
+        <li><span>3</span>Schedule</li>
+        <li><span>4</span>Review</li>
+      </ol>
+      <div id="booking-panel" class="booking-panel"></div>
+    </div>
+  </section>
+
+  <section id="view-policies" class="view" aria-label="Policies">
+    <div class="booking-shell">
+      <span class="eyebrow">Client Policies</span>
+      <h1>Policies and appointment information</h1>
+      <p class="section-intro">Please review these policies before sending an appointment request.</p>
+      <div id="public-policies" class="policy-grid"></div>
+    </div>
+  </section>
+
+  <section id="view-confirmation" class="view" aria-label="Booking confirmation">
+    <div id="confirmation-content" class="booking-shell"></div>
+  </section>
+
+  <section id="view-admin" class="view" aria-label="Kia dashboard">
+    <div id="admin-root"></div>
+  </section>
+
   <dialog id="service-dialog" class="form-dialog">
     <form method="dialog" id="service-form">
       <div class="dialog-heading">
@@ -812,6 +849,17 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
   <script>
 (() => {
   "use strict";
+
+  // Keep every routed page inside the application shell and the footer last,
+  // even when older markup has placed the reusable footer above page sections.
+  const appShell = document.getElementById("app");
+  const siteFooter = document.querySelector(".site-footer");
+  if (appShell) {
+    document.querySelectorAll(".view").forEach(view => {
+      if (!appShell.contains(view)) appShell.append(view);
+    });
+    if (siteFooter) appShell.append(siteFooter);
+  }
 
   const STORAGE_KEY = "beautyByKiaPortalV1";
   const CONFIG = window.BBK_CONFIG || { apiBaseUrl: "/api", appEnvironment: "development", localStorageFallback: true, paymentsEnabled: false };
