@@ -1,7 +1,9 @@
 # Beauty by Kia — Reproduction-First Blank / Empty Screen Audit
 
-Prompt: `BBK-BLANK-SCREEN-DEFECT-003`  
-Production URL: `https://beauty-by-kia.pages.dev/`  
+Prompt: `BBK-BLANK-SCREEN-DEFECT-003`
+
+Production URL: `https://beauty-by-kia.pages.dev/`
+
 Audit date: September 22, 2026
 
 ## Executive result
@@ -16,13 +18,19 @@ GREEN is withheld because the connected Chrome session detached before normal/in
 
 ## Reproduction evidence
 
-Exact sequence: Home → Hair → Wash & Go.  
-Before click: `https://beauty-by-kia.pages.dev/#home`.  
-After click: `https://beauty-by-kia.pages.dev/#book`.  
-Expected: visible Natural Hair service list and intake.  
-Observed before correction: `view-book` had `display:block`, but width `0` and height `0` because its ancestor `view-about` had `display:none`.  
-DOM classification: **B — DOM exists but content is invisible**, plus **F — route changes but render state is not visibly reachable**.  
-Console: no exception at the reproduced moment.  
+Exact sequence: Home → Hair → Wash & Go.
+
+Before click: `https://beauty-by-kia.pages.dev/#home`.
+
+After click: `https://beauty-by-kia.pages.dev/#book`.
+
+Expected: visible Natural Hair service list and intake.
+
+Observed before correction: `view-book` had `display:block`, but width `0` and height `0` because its ancestor `view-about` had `display:none`.
+
+DOM classification: **B — DOM exists but content is invisible**, plus **F — route changes but render state is not visibly reachable**.
+
+Console: no exception at the reproduced moment.
 Network: no failed chunk or dynamic import was involved; the application uses inline CSS and a classic inline application script rather than hashed chunks.
 
 ## Root cause and correction
