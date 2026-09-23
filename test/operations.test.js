@@ -70,3 +70,22 @@ test("every customer navigation route has a page target", () => {
   assert.equal(client.includes('id="admin-root"'), true);
   assert.equal(client.includes('id="confirmation-content"'), true);
 });
+
+test("customer-facing stability polish uses approved public language", () => {
+  assert.equal(client.includes("Beauty starts with confidence."), true);
+  assert.equal(client.includes("Hair, makeup, nails, braids, and bridal beauty services designed around you."), true);
+  assert.equal(client.includes("Serving Central Arkansas. Exact appointment location and details are provided after booking approval."), true);
+  assert.equal(client.includes('href="tel:+15015220061">Call or text Kia: 501-522-0061</a>'), true);
+  assert.equal(client.includes('const currentPhotoDescription = category === "Nails" ? "clear photo'), true);
+  assert.equal(client.includes("A a clear photo"), false);
+});
+
+test("customer category names are shared and Kia Login is footer-only", () => {
+  for (const label of ["Hair", "Color", "Braids", "Weaves & Wigs", "Makeup", "Nails"]) {
+    assert.equal(client.includes(`title: "${label}"`), true, `missing customer category label ${label}`);
+  }
+  const primaryNavigation = client.match(/<nav class="main-nav"[\s\S]*?<\/nav>/u)?.[0] || "";
+  assert.equal(primaryNavigation.includes("Kia Login"), false);
+  const footerNavigation = client.match(/<div class="footer-links">[\s\S]*?<\/div>/u)?.[0] || "";
+  assert.equal(footerNavigation.includes('href="#admin">Kia Login</a>'), true);
+});
