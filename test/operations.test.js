@@ -88,4 +88,6 @@ test("customer category names are shared and Kia Login is footer-only", () => {
   assert.equal(primaryNavigation.includes("Kia Login"), false);
   const footerNavigation = client.match(/<div class="footer-links">[\s\S]*?<\/div>/u)?.[0] || "";
   assert.equal(footerNavigation.includes('href="#admin">Kia Login</a>'), true);
+  assert.equal(client.includes('<footer class="site-footer">'), true);
+  assert.equal(client.includes('<div class="footer-brand">'), true);
 });
