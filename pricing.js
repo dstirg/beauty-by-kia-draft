@@ -40,9 +40,14 @@
     service("press-premade", "Premade Press-On Set", "Nails", "range", 20, 40, "A ready-designed press-on set selected from available options.", { questionnaire: "pressOn", requiredUploads: ["inspiration"] }),
     service("manicure", "Manicure", "Nails", "range", 30, 45, "A professional manicure finished to the selected preferences."),
     service("pedicure", "Pedicure", "Nails", "range", 45, 65, "A professional pedicure finished to the selected preferences."),
-    service("basic-glam", "BBK Basic Glam", "Makeup", "fixed", 65, 65, "A polished basic-glam makeup application."),
-    service("full-glam", "BBK Full Glam", "Makeup", "fixed", 90, 90, "A full-glam makeup application with a more defined finish."),
-    service("wedding-glam", "BBK Wedding Glam", "Makeup", "consultation", 150, 250, "A wedding makeup request reviewed for the look, location, schedule, party size, and trial needs.", { notice: "Wedding pricing may depend on the requested look, location, schedule, trial session, number of people, and other event requirements.", questionnaire: "wedding", requiredUploads: ["inspiration"], statusLabel: "Pending Kia’s review" })
+    service("basic-glam", "BBK Soft Glam", "Makeup", "fixed", 75, 75, "A soft, flawless beat that enhances your natural features without feeling overly dramatic. Perfect for a polished everyday or special-occasion look."),
+    service("full-glam", "BBK Full Glam", "Makeup", "fixed", 100, 100, "More coverage, definition, and detail while still complementing your natural features."),
+    service("signature-glam", "BBK Signature Glam", "Makeup", "fixed", 125, 125, "A bold, detailed, camera-ready Beauty by Kia beat customized for a statement finish."),
+    service("bbk-glam-party", "BBK Glam Party", "Makeup", "starting", 270, null, "Makeup for birthdays, girls’ nights, photoshoots, celebrations, and group events.", { notice: "$90 per person · 3-person minimum · 3 guests $270 · 4 guests $360 · 5 guests $450. Parties of 6 or more receive Kia’s custom quote.", questionnaire: "makeupParty", duration: 180 }),
+    service("wedding-glam", "BBK Bridal Glam", "Makeup", "fixed", 175, 175, "Timeless, elegant, long-lasting makeup customized specifically for your wedding day.", { notice: "Makeup only. Includes elevated skin prep, premium strip lashes, long-wear setting, and a mini bridal touch-up kit.", questionnaire: "bridal", duration: 120 }),
+    service("bridal-trial", "BBK Bridal Trial", "Makeup", "fixed", 100, 100, "A complete bridal makeup application to refine your inspiration, coverage, colors, and wedding-day vision.", { notice: "Makeup only. Your trial helps finalize the bridal look before the wedding day.", questionnaire: "bridal", duration: 120 }),
+    service("bridal-party-glam", "BBK Bridal Party Glam", "Makeup", "starting", 100, null, "Professional makeup for bridesmaids and other adult members of the wedding party.", { notice: "$100 per person · Makeup only. Kia will confirm the wedding-day timeline and group details.", questionnaire: "bridalParty", duration: 120 }),
+    service("junior-glam", "BBK Junior Glam", "Makeup", "fixed", 50, 50, "A soft, age-appropriate beauty service for junior bridesmaids and younger clients.", { notice: "Makeup only. Includes light skin prep, subtle eye enhancement, lip gloss, and finishing touches.", duration: 60 })
   ];
 
   const addOns = [

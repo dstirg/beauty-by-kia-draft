@@ -1,0 +1,38 @@
+name: Beauty by Kia release checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run unit and integration tests
+        run: npm test
+
+      - name: Validate source, migrations, and tracked secrets
+        run: npm run check
+
+      - name: Verify repeatable approved seed
+        run: npm run verify:seed
+
+      - name: Build production files
+        run: npm run build
+
+      - name: Reject whitespace errors
+        run: git diff --check

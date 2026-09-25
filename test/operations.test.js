@@ -1,0 +1,107 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const worker = fs.readFileSync("functions/api/[[path]].js", "utf8");
+const client = fs.readFileSync("index.html", "utf8");
+
+test("text messaging requires consent and remains inactive without a provider", () => {
+  assert.equal(worker.includes('if (preferredContact === "text" && !smsConsentAt)'), true);
+  assert.equal(worker.includes("communication_outbox"), true);
+  assert.equal(worker.includes("'pending_provider'"), true);
+  assert.equal(client.includes("I agree to receive automated transactional text messages"), true);
+  assert.equal(client.includes("no texts will be sent until a texting provider is selected"), true);
+});
+
+test("manual Cash App deposits require Kia verification", () => {
+  assert.equal(worker.includes("handleBookingDeposit"), true);
+  assert.equal(worker.includes('paymentStatus === "deposit_paid" && !method'), true);
+  assert.equal(worker.includes("Deposit received and verified by Kia."), true);
+  assert.equal(worker.includes('Object.freeze(["cash_app"])'), true);
+  assert.equal(client.includes("Zelle email or phone"), false);
+  assert.equal(client.includes("Mark deposit paid"), true);
+  assert.equal(client.includes("After Kia reviews and approves your request, she will provide Cash App deposit instructions. Your appointment is not confirmed until Kia verifies your deposit."), true);
+  assert.equal(client.includes("Stripe"), false);
+});
+
+test("private upload retention cleanup removes R2 objects and metadata after expiry", () => {
+  assert.equal(worker.includes("purgeExpiredPrivateUploads"), true);
+  assert.equal(worker.includes("retention_delete_after <= ?"), true);
+  assert.equal(worker.includes("env.PRIVATE_UPLOADS.delete(upload.object_key)"), true);
+  assert.equal(client.includes('name="photoRetentionDays"'), true);
+});
+
+test("booking API persists structured intake and enforces service photo requirements", () => {
+  assert.equal(worker.includes("normalizeCustomerIntake(client, service.questionnaire_type, intakeCategory)"), true);
+  assert.equal(worker.includes("safety_review_status"), true);
+  assert.equal(worker.includes("client_intake_json"), true);
+  assert.equal(worker.includes("missingRequiredUploadTypes(requiredUploadTypes, uploadTypes)"), true);
+  assert.equal(worker.includes('"required_photo_missing"'), true);
+  assert.equal(worker.includes("bookingAddOns: bookingAddOns.results"), true);
+  assert.equal(client.includes("payload.bookingAddOns"), true);
+});
+
+test("consultation approval recalculates a deposit from the final approved price", () => {
+  assert.equal(worker.includes('booking.price_type_snapshot === "consultation"'), true);
+  assert.equal(worker.includes("depositForDisplayedEstimate(finalTotal, depositRules.results)"), true);
+  assert.match(worker, /UPDATE bookings SET status=\?, payment_status=\?, deposit_cents=\?/u);
+  assert.equal(client.includes("Approve appointment &amp; generate deposit text"), true);
+});
+
+test("Kia can waive only the buffer, propose a new time, and generate manual client texts", () => {
+  assert.equal(worker.includes("body.overrideBuffer === true"), true);
+  assert.equal(worker.includes("approvalConflictRange(window, overrideBuffer)"), true);
+  assert.equal(worker.includes('overrideBuffer ? "booking_approval_buffer_override"'), true);
+  assert.equal(worker.includes("reschedule_proposed"), true);
+  assert.equal(client.includes("Override the appointment buffer"), true);
+  assert.equal(client.includes("True service-time overlaps will still be blocked."), true);
+  assert.equal(client.includes("Save proposed time &amp; generate text"), true);
+  assert.equal(client.includes("CLIENT TEXT READY"), true);
+  assert.equal(client.includes("Open Text Message"), true);
+  assert.equal(client.includes("It is not sent automatically."), true);
+});
+
+test("nail bookings hide hair add-ons and use clear service-routing buttons", () => {
+  assert.equal(client.includes('category === "Hair" || universallyRelevantAddOns.has(addOn.id)'), true);
+  assert.equal(client.includes('Need a different service instead?'), true);
+  assert.equal(client.includes('data-service-route="Makeup"'), true);
+  assert.equal(client.includes('id="continue-nails-only"'), true);
+  assert.equal(client.includes('Current nails photo'), true);
+});
+
+test("client booking uses one concise safety question while retaining the review workflow", () => {
+  assert.equal(client.includes('Any allergies, product reactions, irritation, infection, injury, open skin, or other concern'), true);
+  assert.equal(client.includes('data-safety-for="otherSafetyConcern"'), true);
+  assert.equal(client.includes('safetyFields.map(([key, label])'), false);
+});
+
+test("every customer navigation route has a page target", () => {
+  for (const route of ["home", "about", "book", "policies", "admin", "confirmation"]) {
+    assert.equal(client.includes(`id="view-${route}"`), true, `missing ${route} page target`);
+  }
+  assert.equal(client.includes('id="booking-panel"'), true);
+  assert.equal(client.includes('id="public-policies"'), true);
+  assert.equal(client.includes('id="admin-root"'), true);
+  assert.equal(client.includes('id="confirmation-content"'), true);
+});
+
+test("customer-facing stability polish uses approved public language", () => {
+  assert.equal(client.includes("Beauty starts with confidence."), true);
+  assert.equal(client.includes("Hair, makeup, nails, braids, and bridal beauty services designed around you."), true);
+  assert.equal(client.includes("Serving Central Arkansas. Exact appointment location and details are provided after booking approval."), true);
+  assert.equal(client.includes('href="tel:+15015220061">Call or text Kia: 501-522-0061</a>'), true);
+  assert.equal(client.includes('const currentPhotoDescription = category === "Nails" ? "clear photo'), true);
+  assert.equal(client.includes("A a clear photo"), false);
+});
+
+test("customer category names are shared and Kia Login is footer-only", () => {
+  for (const label of ["Hair", "Color", "Braids", "Weaves & Wigs", "Makeup", "Nails"]) {
+    assert.equal(client.includes(`title: "${label}"`), true, `missing customer category label ${label}`);
+  }
+  const primaryNavigation = client.match(/<nav class="main-nav"[\s\S]*?<\/nav>/u)?.[0] || "";
+  assert.equal(primaryNavigation.includes("Kia Login"), false);
+  const footerNavigation = client.match(/<div class="footer-links">[\s\S]*?<\/div>/u)?.[0] || "";
+  assert.equal(footerNavigation.includes('href="#admin">Kia Login</a>'), true);
+  assert.equal(client.includes('<footer class="site-footer">'), true);
+  assert.equal(client.includes('<div class="footer-brand">'), true);
+});
