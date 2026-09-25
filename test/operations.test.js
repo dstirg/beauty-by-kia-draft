@@ -17,7 +17,8 @@ test("manual Cash App deposits require Kia verification", () => {
   assert.equal(worker.includes("handleBookingDeposit"), true);
   assert.equal(worker.includes('paymentStatus === "deposit_paid" && !method'), true);
   assert.equal(worker.includes("Deposit received and verified by Kia."), true);
-  assert.equal(worker.includes('Object.freeze(["cash_app", "zelle"])'), true);
+  assert.equal(worker.includes('Object.freeze(["cash_app"])'), true);
+  assert.equal(client.includes("Zelle email or phone"), false);
   assert.equal(client.includes("Mark deposit paid"), true);
   assert.equal(client.includes("After Kia reviews and approves your request, she will provide Cash App deposit instructions. Your appointment is not confirmed until Kia verifies your deposit."), true);
   assert.equal(client.includes("Stripe"), false);
@@ -44,7 +45,20 @@ test("consultation approval recalculates a deposit from the final approved price
   assert.equal(worker.includes('booking.price_type_snapshot === "consultation"'), true);
   assert.equal(worker.includes("depositForDisplayedEstimate(finalTotal, depositRules.results)"), true);
   assert.match(worker, /UPDATE bookings SET status=\?, payment_status=\?, deposit_cents=\?/u);
-  assert.equal(client.includes("Approve price &amp; request deposit"), true);
+  assert.equal(client.includes("Approve appointment &amp; generate deposit text"), true);
+});
+
+test("Kia can waive only the buffer, propose a new time, and generate manual client texts", () => {
+  assert.equal(worker.includes("body.overrideBuffer === true"), true);
+  assert.equal(worker.includes("approvalConflictRange(window, overrideBuffer)"), true);
+  assert.equal(worker.includes('overrideBuffer ? "booking_approval_buffer_override"'), true);
+  assert.equal(worker.includes("reschedule_proposed"), true);
+  assert.equal(client.includes("Override the appointment buffer"), true);
+  assert.equal(client.includes("True service-time overlaps will still be blocked."), true);
+  assert.equal(client.includes("Save proposed time &amp; generate text"), true);
+  assert.equal(client.includes("CLIENT TEXT READY"), true);
+  assert.equal(client.includes("Open Text Message"), true);
+  assert.equal(client.includes("It is not sent automatically."), true);
 });
 
 test("nail bookings hide hair add-ons and use clear service-routing buttons", () => {

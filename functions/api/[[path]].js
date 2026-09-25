@@ -16,6 +16,7 @@ import {
   SESSION_COOKIE
 } from "../_lib/security.js";
 import {
+  approvalConflictRange,
   appointmentWindow,
   BOOKING_STATUSES,
   localDateParts,
@@ -33,7 +34,7 @@ const AUTH_WINDOW_MINUTES = 15;
 const LOCKOUT_MINUTES = 15;
 const PRIVATE_UPLOAD_RETENTION_DAYS = 90;
 const PRIVATE_UPLOAD_TYPES = Object.freeze(["current_look", "inspiration"]);
-const MANUAL_DEPOSIT_METHODS = Object.freeze(["cash_app", "zelle"]);
+const MANUAL_DEPOSIT_METHODS = Object.freeze(["cash_app"]);
 const DUMMY_SALT = "bm90LWEtc2VjcmV0LXNhbHQ";
 
 function response(payload, status = 200, extraHeaders = {}, cookies = []) {
@@ -758,13 +759,15 @@ async function failApproval(env, request, session, booking, reason) {
 async function handleApproveBooking(request, env, bookingId) {
   const session = await authenticate(request, env, true);
   const body = await readJson(request);
-  const booking = await env.DB.prepare(`SELECT b.*, bs.duration_minutes_snapshot, bs.service_id, bs.price_type_snapshot FROM bookings b
+  const booking = await env.DB.prepare(`SELECT b.*, bs.duration_minutes_snapshot, bs.service_id, bs.service_name_snapshot, bs.price_type_snapshot FROM bookings b
     JOIN booking_services bs ON bs.booking_id=b.id WHERE b.id=?`).bind(bookingId).first();
   if (!booking) throw new RequestError("Booking not found.", 404);
   if (!new Set(["pending_review", "reschedule_requested", "time_unavailable"]).has(booking.status)) throw new RequestError("This booking cannot be approved from its current status.", 409);
   const startAt = body.appointmentStartAt || booking.proposed_start_at || booking.requested_start_at;
+  const overrideBuffer = body.overrideBuffer === true;
   const buffers = await env.DB.prepare("SELECT * FROM appointment_buffers WHERE id='default'").first();
   const window = appointmentWindow(startAt, booking.duration_minutes_snapshot, buffers.before_minutes, buffers.after_minutes);
+  const conflictRange = approvalConflictRange(window, overrideBuffer);
   const timezoneSetting = await env.DB.prepare("SELECT setting_value FROM application_settings WHERE setting_key='timezone'").first();
   const local = localDateParts(window.appointmentStartAt, timezoneSetting?.setting_value || "America/Chicago");
   const localEnd = localDateParts(window.appointmentEndAt, timezoneSetting?.setting_value || "America/Chicago");
@@ -804,7 +807,7 @@ async function handleApproveBooking(request, env, bookingId) {
   const nextStatus = depositRequired > 0 ? "awaiting_deposit" : "confirmed";
   const nextPaymentStatus = depositRequired > 0 ? "deposit_requested" : "deposit_not_requested";
   const settingsResult = await env.DB.prepare(`SELECT setting_key, setting_value FROM application_settings
-    WHERE setting_key IN ('manual_deposits_enabled','cash_app_handle','zelle_contact','deposit_instructions')`).all();
+    WHERE setting_key IN ('manual_deposits_enabled','cash_app_handle','deposit_instructions')`).all();
   const paymentSettings = Object.fromEntries(settingsResult.results.map(item => [item.setting_key, item.setting_value]));
   if (depositRequired > 0 && paymentSettings.manual_deposits_enabled !== "true") {
     throw new RequestError("Manual deposit requests are not enabled.", 409, "deposit_unavailable");
@@ -813,26 +816,43 @@ async function handleApproveBooking(request, env, bookingId) {
     paymentSettings.cash_app_handle ? `Cash App ${paymentSettings.cash_app_handle}` : null,
     null
   ].filter(Boolean);
+  const appointmentLabel = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezoneSetting?.setting_value || "America/Chicago",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(window.appointmentStartAt));
   const defaultCustomerMessage = depositRequired > 0
-    ? `Beauty by Kia approved request ${booking.reference}. A $${(depositRequired / 100).toFixed(2)} deposit is required. ${paymentOptions.length ? `Pay using ${paymentOptions.join(" or ")}.` : "Kia will send Cash App details directly."} Kia will verify the deposit before confirmation.`
-    : `Beauty by Kia approved request ${booking.reference}. Your appointment is confirmed.`;
+    ? `Hi ${booking.client_name}, Kia approved your ${booking.service_name_snapshot} appointment for ${appointmentLabel}. A $${(depositRequired / 100).toFixed(2)} deposit is required to reserve it. ${paymentOptions.length ? `Please send it to ${paymentOptions.join(" or ")}.` : "Kia will send Cash App details directly."} Reply after payment is sent. Your appointment is confirmed after Kia verifies the deposit.`
+    : `Hi ${booking.client_name}, Kia approved your ${booking.service_name_snapshot} appointment for ${appointmentLabel}. Your appointment is confirmed.`;
   const customerMessage = String(body.customerMessage || defaultCustomerMessage).slice(0, 4000);
+  const requestedPrivateNote = String(body.privateNote || "").slice(0, 3500);
+  const privateNote = overrideBuffer
+    ? `BUFFER OVERRIDE: Kia approved this appointment without the standard buffer. ${requestedPrivateNote}`.trim().slice(0, 4000)
+    : requestedPrivateNote;
   const updatedAt = nowIso();
   const update = await env.DB.prepare(`UPDATE bookings SET status=?, payment_status=?, deposit_cents=?,
       appointment_start_at=?, appointment_end_at=?, buffered_start_at=?, buffered_end_at=?, approved_final_total_cents=?,
-      remaining_balance_cents=?, approved_at=?, deposit_requested_at=?, private_admin_note=?, customer_message=?, updated_at=?
+      remaining_balance_cents=?, approved_at=?, deposit_requested_at=?, private_admin_note=?, customer_message=?,
+      buffer_override_approved_at=?, buffer_override_approved_by_admin_id=?, updated_at=?
     WHERE id=? AND status IN ('pending_review','reschedule_requested','time_unavailable')
       AND NOT EXISTS (SELECT 1 FROM bookings existing WHERE existing.id<>? AND existing.status IN ('awaiting_deposit','confirmed')
-        AND existing.archived_at IS NULL AND existing.buffered_start_at < ? AND existing.buffered_end_at > ?)
+        AND existing.archived_at IS NULL
+        AND ${overrideBuffer ? "existing.appointment_start_at" : "existing.buffered_start_at"} < ?
+        AND ${overrideBuffer ? "existing.appointment_end_at" : "existing.buffered_end_at"} > ?)
       AND (SELECT COUNT(*) FROM bookings day_booking WHERE day_booking.id<>? AND day_booking.status IN ('awaiting_deposit','confirmed')
         AND day_booking.appointment_start_at >= ? AND day_booking.appointment_start_at <= ?) < ?`)
     .bind(nextStatus, nextPaymentStatus, depositRequired, window.appointmentStartAt, window.appointmentEndAt, window.bufferedStartAt, window.bufferedEndAt, finalTotal,
-      Math.max(0, finalTotal - depositRequired), updatedAt, depositRequired > 0 ? updatedAt : null, String(body.privateNote || "").slice(0, 4000), customerMessage, updatedAt, booking.id,
-      booking.id, window.bufferedEndAt, window.bufferedStartAt, booking.id, dayStart, dayEnd, buffers.maximum_appointments_per_day).run();
-  if (!update.meta?.changes) return failApproval(env, request, session, booking, "concurrent conflict or daily limit");
+      Math.max(0, finalTotal - depositRequired), updatedAt, depositRequired > 0 ? updatedAt : null, privateNote, customerMessage,
+      overrideBuffer ? updatedAt : null, overrideBuffer ? session.admin_account_id : null, updatedAt, booking.id,
+      booking.id, conflictRange.endAt, conflictRange.startAt, booking.id, dayStart, dayEnd, buffers.maximum_appointments_per_day).run();
+  if (!update.meta?.changes) return failApproval(env, request, session, booking, overrideBuffer ? "true appointment overlap or daily limit" : "buffered conflict or daily limit");
   const followUp = [
     env.DB.prepare("INSERT INTO booking_status_history (id, booking_id, previous_status, new_status, customer_reason, private_admin_note, changed_by_admin_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .bind(uuid(), booking.id, booking.status, nextStatus, customerMessage.slice(0, 1000), String(body.privateNote || "").slice(0, 1000), session.admin_account_id)
+      .bind(uuid(), booking.id, booking.status, nextStatus, customerMessage.slice(0, 1000), privateNote.slice(0, 1000), session.admin_account_id)
   ];
   if (depositRequired > 0) {
     followUp.push(env.DB.prepare(`INSERT INTO payment_status_history
@@ -847,8 +867,8 @@ async function handleApproveBooking(request, env, bookingId) {
       .bind(uuid(), booking.id, depositRequired > 0 ? "deposit_requested" : "appointment_confirmed", booking.client_phone, customerMessage.slice(0, 1000)));
   }
   await env.DB.batch(followUp);
-  await audit(env, request, "booking_approval", session.admin_account_id, "booking", booking.id, { previousStatus: booking.status, newStatus: nextStatus, paymentStatus: nextPaymentStatus });
-  return response({ ok: true, booking: { id: booking.id, status: nextStatus, paymentStatus: nextPaymentStatus, ...window, approvedFinalTotalCents: finalTotal } });
+  await audit(env, request, overrideBuffer ? "booking_approval_buffer_override" : "booking_approval", session.admin_account_id, "booking", booking.id, { previousStatus: booking.status, newStatus: nextStatus, paymentStatus: nextPaymentStatus, overrideBuffer });
+  return response({ ok: true, booking: { id: booking.id, status: nextStatus, paymentStatus: nextPaymentStatus, overrideBuffer, customerMessage, ...window, approvedFinalTotalCents: finalTotal } });
 }
 
 async function handleBookingDeposit(request, env, bookingId) {
@@ -902,13 +922,21 @@ async function handleBookingStatus(request, env, bookingId) {
   const cancelledAt = status.startsWith("cancelled_") ? nowIso() : null;
   const declinedAt = status === "declined" ? nowIso() : null;
   const completedAt = status === "completed" ? nowIso() : null;
-  await env.DB.batch([
+  const customerMessage = String(body.customerMessage || "").slice(0, 4000);
+  const statements = [
     env.DB.prepare(`UPDATE bookings SET status=?, cancelled_at=COALESCE(?, cancelled_at), declined_at=COALESCE(?, declined_at),
       completed_at=COALESCE(?, completed_at), proposed_start_at=?, customer_message=?, private_admin_note=?, updated_at=? WHERE id=?`)
-      .bind(status, cancelledAt, declinedAt, completedAt, body.proposedStartAt || null, String(body.customerMessage || "").slice(0, 4000), String(body.privateNote || "").slice(0, 4000), nowIso(), booking.id),
+      .bind(status, cancelledAt, declinedAt, completedAt, body.proposedStartAt || null, customerMessage, String(body.privateNote || "").slice(0, 4000), nowIso(), booking.id),
     env.DB.prepare("INSERT INTO booking_status_history (id, booking_id, previous_status, new_status, customer_reason, private_admin_note, changed_by_admin_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .bind(uuid(), booking.id, booking.status, status, String(body.customerMessage || "").slice(0, 1000), String(body.privateNote || "").slice(0, 1000), session.admin_account_id)
-  ]);
+      .bind(uuid(), booking.id, booking.status, status, customerMessage.slice(0, 1000), String(body.privateNote || "").slice(0, 1000), session.admin_account_id)
+  ];
+  if (status === "reschedule_requested" && customerMessage && booking.sms_consent_at && booking.client_phone) {
+    statements.push(env.DB.prepare(`INSERT INTO communication_outbox
+      (id, booking_id, channel, message_type, recipient, body_text, status)
+      VALUES (?, ?, 'sms', 'reschedule_proposed', ?, ?, 'pending_provider')`)
+      .bind(uuid(), booking.id, booking.client_phone, customerMessage.slice(0, 1000)));
+  }
+  await env.DB.batch(statements);
   const action = status === "declined" ? "booking_decline" : status.includes("cancelled") ? "booking_cancellation" : status === "reschedule_requested" ? "booking_reschedule" : "booking_status_change";
   await audit(env, request, action, session.admin_account_id, "booking", booking.id, { previousStatus: booking.status, newStatus: status });
   return response({ ok: true, booking: { id: booking.id, status } });

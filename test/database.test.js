@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { appointmentWindow, intervalsOverlap, statusReleasesSlot } from "../functions/_lib/booking.js";
+import { approvalConflictRange, appointmentWindow, intervalsOverlap, statusReleasesSlot } from "../functions/_lib/booking.js";
 
 function database() {
   const db = new DatabaseSync(":memory:");
@@ -65,6 +65,28 @@ test("appointment window includes full duration and both buffers", () => {
   assert.equal(window.bufferedStartAt, "2030-01-02T08:30:00.000Z");
   assert.equal(window.bufferedEndAt, "2030-01-02T12:30:00.000Z");
   assert.equal(intervalsOverlap(window.bufferedStartAt, window.bufferedEndAt, "2030-01-02T10:00:00.000Z", "2030-01-02T11:00:00.000Z"), true);
+});
+
+test("buffer override allows back-to-back services but never a true overlap", () => {
+  const first = appointmentWindow("2030-01-02T10:00:00.000Z", 120, 0, 30);
+  const backToBack = appointmentWindow("2030-01-02T12:00:00.000Z", 120, 0, 30);
+  const actualRange = approvalConflictRange(backToBack, true);
+  assert.equal(intervalsOverlap(first.bufferedStartAt, first.bufferedEndAt, backToBack.bufferedStartAt, backToBack.bufferedEndAt), true);
+  assert.deepEqual(actualRange, { startAt: "2030-01-02T12:00:00.000Z", endAt: "2030-01-02T14:00:00.000Z" });
+  assert.equal(intervalsOverlap(first.appointmentStartAt, first.appointmentEndAt, actualRange.startAt, actualRange.endAt), false);
+
+  const db = database();
+  insertBooking(db, { id: "first", status: "confirmed", start: first.appointmentStartAt, end: first.appointmentEndAt, bufferedStart: first.bufferedStartAt, bufferedEnd: first.bufferedEndAt });
+  insertBooking(db, { id: "back-to-back" });
+  assert.throws(() => db.prepare(`UPDATE bookings SET status='confirmed', appointment_start_at=?, appointment_end_at=?, buffered_start_at=?, buffered_end_at=? WHERE id='back-to-back'`)
+    .run(backToBack.appointmentStartAt, backToBack.appointmentEndAt, backToBack.bufferedStartAt, backToBack.bufferedEndAt), /no longer available/u);
+  db.prepare(`UPDATE bookings SET status='confirmed', appointment_start_at=?, appointment_end_at=?, buffered_start_at=?, buffered_end_at=?, buffer_override_approved_at=CURRENT_TIMESTAMP WHERE id='back-to-back'`)
+    .run(backToBack.appointmentStartAt, backToBack.appointmentEndAt, backToBack.bufferedStartAt, backToBack.bufferedEndAt);
+  assert.equal(db.prepare("SELECT status FROM bookings WHERE id='back-to-back'").get().status, "confirmed");
+
+  insertBooking(db, { id: "true-overlap" });
+  assert.throws(() => db.prepare(`UPDATE bookings SET status='confirmed', appointment_start_at=?, appointment_end_at=?, buffered_start_at=?, buffered_end_at=?, buffer_override_approved_at=CURRENT_TIMESTAMP WHERE id='true-overlap'`)
+    .run("2030-01-02T11:30:00.000Z", "2030-01-02T12:30:00.000Z", "2030-01-02T11:30:00.000Z", "2030-01-02T12:30:00.000Z"), /no longer available/u);
 });
 
 test("production settings use D1 and disable browser authority and payments", () => {

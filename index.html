@@ -1288,6 +1288,20 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
   }
 
+  function dateTimeLocalValue(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "";
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  }
+
+  function proposedTimeMessage(record, proposedStartAt) {
+    const proposed = new Date(proposedStartAt);
+    const label = proposed.toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+    return `Hi ${record.client.name}, Kia would like to offer ${label} for your ${record.serviceName} appointment. Is this time okay? Please reply YES to confirm, or contact Kia if another time is needed.`;
+  }
+
   function getService(serviceId) {
     return state.services.find(service => service.id === serviceId) || (serviceId === "svc-promo-mani-pedi" && PRICING.promotionIsActive(state.promotion) ? { id:"svc-promo-mani-pedi", name:"Manicure + Pedicure Combo", category:"Nails", priceType:"fixed", minPrice:70, maxPrice:70, basePrice:70, duration:120, description:"Grand Opening Special promotional bundle.", active:true, applicableAddOnIds:[] } : null);
   }
@@ -2080,7 +2094,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       </div></div>
       <div class="admin-card"><div class="admin-card-header"><h2>Manual Deposits</h2></div><div class="form-grid two-columns">
         <label>Cash App handle<input name="cashAppHandle" value="${escapeHtml(state.operations.cashAppHandle)}" placeholder="$handle" autocomplete="off" /></label>
-        <label>Zelle email or phone<input name="zelleContact" value="${escapeHtml(state.operations.zelleContact)}" autocomplete="off" /></label>
+        <div class="notice notice-info"><strong>Cash App only:</strong> Payment requests use Kia’s confirmed Cash App handle.</div>
         <label>Sunday request surcharge<input type="number" min="0" step="1" name="sundaySurcharge" value="${state.operations.sundaySurcharge}" /></label>
         <label>Private-photo retention (days)<input type="number" min="1" max="365" step="1" name="photoRetentionDays" value="${state.operations.photoRetentionDays}" /></label>
         <label class="full-span">Deposit instructions<textarea name="depositInstructions" rows="3">${escapeHtml(state.operations.depositInstructions)}</textarea></label>
@@ -2290,10 +2304,15 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
   async function updateBookingStatus(id, status) {
     const record = state.bookings.find(booking => booking.id === id);
     if (!record) return;
+    if (status === "confirmed") {
+      renderAdmin();
+      showBookingDetails(id);
+      showToast("Review the appointment time and approve it from the booking details.");
+      return;
+    }
     if (!USE_LOCAL_FALLBACK) {
       try {
-        if (status === "confirmed") await apiRequest(`/admin/bookings/${encodeURIComponent(id)}/approve`, { method: "POST", body: JSON.stringify({ appointmentStartAt: record.requested_start_at || `${record.date}T${record.time}:00`, approvedFinalTotalCents: Math.round(Number(record.finalPrice ?? record.total ?? 0) * 100) }) });
-        else await apiRequest(`/admin/bookings/${encodeURIComponent(id)}/status`, { method: "POST", body: JSON.stringify({ status }) });
+        await apiRequest(`/admin/bookings/${encodeURIComponent(id)}/status`, { method: "POST", body: JSON.stringify({ status }) });
         applyServerState(await apiRequest("/admin/state"));
         showToast("Booking status updated.");
         renderAdmin();
@@ -2309,7 +2328,7 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     if (!window.confirm("Confirm that Kia has personally verified this deposit was received?")) return;
     const method = window.prompt("Enter the payment method: cash_app", "cash_app");
     if (!method) return;
-    if (!["cash_app", "zelle"].includes(method.trim().toLowerCase())) {
+    if (method.trim().toLowerCase() !== "cash_app") {
       showToast("Choose cash_app for launch deposits.");
       return;
     }
@@ -2342,9 +2361,36 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     const safetyLabels = { allergies: "Allergies or sensitivities", previousReactions: "Previous reactions", irritation: "Irritation", infection: "Infection", injury: "Injury", openAreas: "Open areas", otherSafetyConcern: "Other safety concern" };
     const safetyDetails = Object.entries(safetyLabels).filter(([key]) => record.client[key] === "yes").map(([key, label]) => [label, record.client[`${key}Explanation`] || "No explanation provided"]);
     const canApprove = ["pending_review", "reschedule_requested", "time_unavailable"].includes(record.status);
+    const approvalStartValue = dateTimeLocalValue(record.proposed_start_at || record.requested_start_at);
     const finalPriceControl = canApprove
-      ? `<form data-final-price-form="${record.id}" class="form-grid"><label>Final approved price<input name="finalPrice" type="number" min="${record.priceType === "consultation" ? "0.01" : "0"}" step="0.01" value="${record.finalPrice ?? record.total ?? 0}" required /></label><button class="button button-primary button-small">Approve price &amp; request deposit</button></form>`
+      ? `<form data-final-price-form="${record.id}" class="form-grid two-columns">
+          <label>Approved appointment time<input name="appointmentStartAt" type="datetime-local" value="${escapeHtml(approvalStartValue)}" required /></label>
+          <label>Final approved price<input name="finalPrice" type="number" min="${record.priceType === "consultation" ? "0.01" : "0"}" step="0.01" value="${record.finalPrice ?? record.total ?? 0}" required /></label>
+          <label class="checkbox-label full-span"><input name="overrideBuffer" type="checkbox" /><span><strong>Override the appointment buffer</strong><br /><small>I want to allow this back-to-back appointment without the standard buffer. True service-time overlaps will still be blocked.</small></span></label>
+          <button class="button button-primary button-small full-span">Approve appointment &amp; generate deposit text</button>
+        </form>`
       : `<div class="line-item"><span>Final approved price</span><strong>${money.format(record.total || 0)}</strong></div>`;
+    const terminalStatus = ["completed", "cancelled_by_client", "cancelled_by_brookia", "declined", "no_show"].includes(record.status);
+    const proposalValue = dateTimeLocalValue(record.proposed_start_at || record.appointment_start_at || record.requested_start_at);
+    const rescheduleControl = terminalStatus ? "" : `<div class="summary-card" style="margin-top:18px">
+      <h3>Propose a Different Time</h3>
+      <p>Save a new proposed time and generate a message Kia can text to the client. This releases the currently held time until the new time is approved.</p>
+      <form data-reschedule-form="${record.id}" class="form-grid two-columns">
+        <label>Proposed date and time<input name="proposedStartAt" type="datetime-local" value="${escapeHtml(proposalValue)}" required /></label>
+        <button class="button button-secondary" style="align-self:end">Save proposed time &amp; generate text</button>
+      </form>
+    </div>`;
+    const generatedText = String(record.customer_message || "").trim();
+    const smsPhone = String(record.client.phone || "").replace(/[^+\d]/gu, "");
+    const communicationControl = generatedText ? `<div class="notice notice-success" style="margin-top:18px">
+      <strong>CLIENT TEXT READY</strong>
+      <p>This message is generated for Kia to review and send. It is not sent automatically.</p>
+      <textarea id="generated-client-text" rows="6" readonly>${escapeHtml(generatedText)}</textarea>
+      <div class="hero-actions" style="margin-top:12px">
+        <button class="button button-primary button-small" type="button" data-copy-client-text>Copy Text</button>
+        ${smsPhone ? `<a class="button button-secondary button-small" href="sms:${escapeHtml(smsPhone)}?body=${encodeURIComponent(generatedText)}">Open Text Message</a>` : ""}
+      </div>
+    </div>` : "";
     content.innerHTML = `
       <div style="padding:26px">
         <div class="dialog-heading">
@@ -2381,6 +2427,9 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
           <p><strong>Add-ons:</strong> ${record.addOns?.length ? record.addOns.map(addOn => escapeHtml(addOn.name)).join(", ") : "None"}</p>
         </div>
         ${serviceSpecificDetails.length ? `<div class="summary-card" style="margin-top:18px"><h3>Service-Specific Answers</h3>${serviceSpecificDetails.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}</div>` : ""}
+        ${record.buffer_override_approved_at ? `<div class="notice notice-warning" style="margin-top:18px"><strong>BUFFER OVERRIDE APPROVED</strong><p>Kia approved this appointment without the standard appointment buffer. Actual service times still do not overlap.</p></div>` : ""}
+        ${communicationControl}
+        ${rescheduleControl}
         <div class="form-grid two-columns" style="margin-top:18px">
           <div class="summary-card"><h3>Current Hair</h3>${record.currentHairPhoto ? `<img src="${record.currentHairPhoto}" alt="Client current hair" style="width:100%;max-height:360px;object-fit:contain;border-radius:14px" />` : '<p class="helper-text">No current-hair photo was uploaded.</p>'}</div>
           <div class="summary-card"><h3>Inspiration</h3>${record.inspirationPhoto ? `<img src="${record.inspirationPhoto}" alt="Client inspiration" style="width:100%;max-height:360px;object-fit:contain;border-radius:14px" />` : '<p class="helper-text">No inspiration photo was uploaded.</p>'}</div>
@@ -2388,6 +2437,35 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
         <div class="dialog-actions"><button class="button button-secondary" type="button" data-close-dialog="booking-dialog">Close</button></div>
       </div>`;
     dialog.showModal();
+    content.querySelector("[data-copy-client-text]")?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(generatedText);
+        showToast("Client text copied. Review it, then send it from Kia's phone.");
+      } catch {
+        showToast("The text could not be copied automatically. Select and copy it from the message box.");
+      }
+    });
+    content.querySelector("[data-reschedule-form]")?.addEventListener("submit", async event => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      const proposedStartAt = new Date(String(form.get("proposedStartAt") || ""));
+      if (!Number.isFinite(proposedStartAt.getTime())) {
+        showToast("Choose a valid proposed date and time.");
+        return;
+      }
+      const customerMessage = proposedTimeMessage(record, proposedStartAt);
+      try {
+        await apiRequest(`/admin/bookings/${encodeURIComponent(record.id)}/status`, {
+          method: "POST",
+          body: JSON.stringify({ status: "reschedule_requested", proposedStartAt: proposedStartAt.toISOString(), customerMessage })
+        });
+        applyServerState(await apiRequest("/admin/state"));
+        dialog.close();
+        renderAdmin();
+        showBookingDetails(record.id);
+        showToast("Proposed time saved and client text generated.");
+      } catch (error) { showToast(error.message); }
+    });
     content.querySelector("[data-ack-safety]")?.addEventListener("click", async () => {
       try {
         await apiRequest(`/admin/bookings/${encodeURIComponent(record.id)}/safety-review`, { method: "POST", body: JSON.stringify({}) });
@@ -2400,9 +2478,15 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
     });
     content.querySelector("[data-final-price-form]")?.addEventListener("submit", async event => {
       event.preventDefault();
-      const value = Number(new FormData(event.currentTarget).get("finalPrice"));
+      const form = new FormData(event.currentTarget);
+      const value = Number(form.get("finalPrice"));
+      const appointmentStartAt = new Date(String(form.get("appointmentStartAt") || ""));
       if (!Number.isFinite(value) || value < 0 || (record.priceType === "consultation" && value <= 0)) {
         showToast("Enter Kia's approved final price before approving this request.");
+        return;
+      }
+      if (!Number.isFinite(appointmentStartAt.getTime())) {
+        showToast("Choose a valid appointment date and time.");
         return;
       }
       if (USE_LOCAL_FALLBACK) {
@@ -2412,12 +2496,13 @@ th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-s
       try {
         await apiRequest(`/admin/bookings/${encodeURIComponent(record.id)}/approve`, {
           method: "POST",
-          body: JSON.stringify({ appointmentStartAt: record.requested_start_at || `${record.date}T${record.time}:00`, approvedFinalTotalCents: Math.round(value * 100) })
+          body: JSON.stringify({ appointmentStartAt: appointmentStartAt.toISOString(), approvedFinalTotalCents: Math.round(value * 100), overrideBuffer: form.get("overrideBuffer") === "on" })
         });
         applyServerState(await apiRequest("/admin/state"));
         dialog.close();
-        showToast("Price approved. Deposit instructions are ready for Kia to send.");
         renderAdmin();
+        showBookingDetails(record.id);
+        showToast("Appointment approved. Confirmation and deposit text generated.");
       } catch (error) {
         showToast(error.message);
         applyServerState(await apiRequest("/admin/state"));

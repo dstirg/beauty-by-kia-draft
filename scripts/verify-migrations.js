@@ -24,13 +24,13 @@ const missing = required.filter(name => !tables.has(name));
 if (missing.length) throw new Error(`Missing required tables: ${missing.join(", ")}`);
 
 const triggers = new Set(database.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'").all().map(row => row.name));
-for (const trigger of ["bookings_prevent_overlap_insert", "bookings_prevent_overlap_update", "booking_price_snapshots_immutable_update"]) {
+for (const trigger of ["bookings_prevent_overlap_insert_v2", "bookings_prevent_overlap_update_v2", "booking_price_snapshots_immutable_update"]) {
   if (!triggers.has(trigger)) throw new Error(`Missing required trigger: ${trigger}`);
 }
 const privateUploadColumns = new Set(database.prepare("PRAGMA table_info(private_upload_metadata)").all().map(row => row.name));
 if (!privateUploadColumns.has("claim_token_hash")) throw new Error("Missing private upload authorization column.");
 const bookingColumns = new Set(database.prepare("PRAGMA table_info(bookings)").all().map(row => row.name));
-for (const column of ["sms_consent_at", "deposit_method", "deposit_requested_at", "deposit_received_at", "client_intake_json"]) {
+for (const column of ["sms_consent_at", "deposit_method", "deposit_requested_at", "deposit_received_at", "client_intake_json", "buffer_override_approved_at", "buffer_override_approved_by_admin_id"]) {
   if (!bookingColumns.has(column)) throw new Error(`Missing booking operations column: ${column}`);
 }
 const paymentColumns = new Set(database.prepare("PRAGMA table_info(payment_transactions)").all().map(row => row.name));

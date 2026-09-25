@@ -49,6 +49,12 @@ export function appointmentWindow(startAt, durationMinutes, beforeMinutes = 0, a
   };
 }
 
+export function approvalConflictRange(window, overrideBuffer = false) {
+  return overrideBuffer
+    ? { startAt: window.appointmentStartAt, endAt: window.appointmentEndAt }
+    : { startAt: window.bufferedStartAt, endAt: window.bufferedEndAt };
+}
+
 export function localDateParts(isoTimestamp, timeZone = "America/Chicago") {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,

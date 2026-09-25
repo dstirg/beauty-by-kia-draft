@@ -789,7 +789,9 @@ INSERT OR IGNORE INTO application_settings (setting_key, setting_value) VALUES
   ('private_upload_retention_days', '90'),
   ('private_upload_retention_approved', 'true'),
   ('manual_deposits_enabled', 'true'),
-  ('deposit_instructions', 'Kia will send approved Cash App or Zelle instructions after reviewing the appointment request. A payment is not recorded until Kia verifies it.'),
+  ('cash_app_handle', '$beautybybrookia'),
+  ('zelle_contact', ''),
+  ('deposit_instructions', 'After Kia approves a request, she will provide Cash App deposit instructions. A payment is not recorded until Kia verifies it.'),
   ('stripe_available_later', 'true'),
   ('sms_automation_requested', 'true'),
   ('sms_provider', 'none'),
@@ -797,4 +799,3 @@ INSERT OR IGNORE INTO application_settings (setting_key, setting_value) VALUES
   ('sms_consent_required', 'true'),
   ('timezone', 'America/Chicago'),
   ('initial_admin_setup_complete', 'false');
-
